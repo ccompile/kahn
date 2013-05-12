@@ -21,6 +21,6 @@ module Example (K : Interface.S) = struct
 
 end
 
-module E = Example(Th)
+module E = Example(Seq)
 
 let () = E.K.run E.main
