@@ -11,7 +11,6 @@ let new_channel = Unix.pipe
 
 let msend c v =
     let chan = Unix.out_channel_of_descr c in
-    Printf.printf "[%d] sent value %s\n%!" (Unix.getpid ()) (Marshal.to_string v flags);
     Marshal.to_channel chan v flags;
     flush chan
 
@@ -19,15 +18,15 @@ let mrecv (c : 'a in_port) =
     ((Marshal.from_channel (Unix.in_channel_of_descr c)) : 'a)
 
 let return v out =
-    msend out v
+    msend out v;
+    Unix.close out
 
 let put v c out =
     msend c v;
     return () out
 
 let rec get (c : 'a in_port) out =
-    let v = (mrecv : 'a) in
-    Printf.printf "[%d] got value  %s\n%!" (Unix.getpid ()) (Marshal.to_string v flags);
+    let v = mrecv c in
     return v out
  
 let start (p : 'a process) =
@@ -53,6 +52,7 @@ let bind (e : 'a process) e' out =
     let (r,w) = new_channel () in
     e w;
     let v = (mrecv r : 'a) in
+    Unix.close r;
     e' v out
 
 
@@ -60,7 +60,10 @@ let run (e : 'a process) =
     let (pid,output) = start e in
     (match Unix.waitpid [] pid with
     | (_,Unix.WEXITED(0)) ->
-            mrecv output
-    | _ -> raise RuntimeError)
+            let v = mrecv output in
+            Unix.close output;
+            v
+    | _ -> Unix.close output;
+           raise RuntimeError)
 
 
