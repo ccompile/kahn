@@ -24,5 +24,6 @@ end
 module E = Example(Serveur)
 
 let () =
-if Sys.argv.(1) = "c" then Serveur.go ()
-else E.K.run E.main 
+if Sys.argv.(1) = "c" then 
+Serveur.go () 
+else (Thread.create (Serveur.go) () ;print_int 1;E.K.run E.main )

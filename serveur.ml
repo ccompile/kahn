@@ -22,9 +22,10 @@ let send_string sock str =
 let rec do_listen () =
         let (client_sock, _) = accept listen_sock in
         (*Début phase de traitement de la requete client*)
-
-        let channel = Unix.in_channel_of_descr listen_sock in
+        let channel = Unix.in_channel_of_descr client_sock in
         let f = (Marshal.from_channel channel: 'a process) in
+        
+        print_newline(); 
         ignore(Thread.create 
         (fun ()-> (f (); send_string client_sock "end"))  () );
 
@@ -36,7 +37,8 @@ thread?*)
         do_listen ()
 
 let go () =
-   Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string "0.0.0.0",port));
+   Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string
+"127.0.0.1",port));
         Unix.listen listen_sock (List.length available);
         do_listen () 
 
@@ -47,7 +49,9 @@ let go () =
 
 
   let new_channel () =
-     Unix.socketpair  Unix.PF_INET Unix.SOCK_STREAM 0 
+     (Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0,
+     Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0
+      ) 
 
   let put element chan () =
     let channel = Unix.out_channel_of_descr chan in
