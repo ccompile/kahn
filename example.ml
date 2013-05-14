@@ -21,6 +21,8 @@ module Example (K : Interface.S) = struct
 
 end
 
-module E = Example(Pr)
+module E = Example(Serveur)
 
-let () = E.K.run E.main
+let () =
+if Sys.argv.(1) = "c" then Serveur.go ()
+else E.K.run E.main 
