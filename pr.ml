@@ -32,16 +32,12 @@ let rec get (c : 'a in_port) out =
 let start (p : 'a process) =
     let (r,w) = new_channel () in
     let v = Unix.fork() in
-    if v <> 0 then
-     begin
-        (v,r)
-     end
-    else
-     begin
-        p w;
-        exit 0
-     end
-
+    (match v with
+     | 0 -> Unix.close w;
+            (v,r)
+     | pid -> Unix.close r;
+              p w;
+              exit 0)
 
 let doco l out =
     let ths = List.map start l in
