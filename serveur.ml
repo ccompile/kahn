@@ -1,6 +1,5 @@
 open Unix
 
-
 type 'a process = (unit-> 'a)
 type 'a channel= Unix.file_descr
 type 'a in_port = 'a channel
@@ -10,7 +9,7 @@ type 'a out_port = 'a channel
 
 type computer = {ip : string; port : int}
 
-let available = [{ip="129.199.224.148";port=20};{ip="127.0.0.1";port=25}] 
+let available = [{ip="127.0.0.1";port=24};{ip="127.0.0.1";port=20};{ip="127.0.0.1";port=25}] 
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
@@ -25,9 +24,8 @@ let rec do_listen () =
         let channel = Unix.in_channel_of_descr client_sock and
         outchan = Unix.out_channel_of_descr client_sock in
         let f = Marshal.from_channel channel in
-        ignore(Thread.create 
-        (fun ()-> (f  () ;print_int 5; send_string
-client_sock "end"))  () );
+         f  (); print_newline() ;print_int 5; 
+         send_string client_sock "end";
 
 (*TODO: verif mon ignore arnaque:  a-t-on reellement pas besoin du
 thread?*)
