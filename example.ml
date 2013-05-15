@@ -1,3 +1,4 @@
+
 module Example (K : Interface.S) = struct
   module K = K
   module Lib = Kahn.Lib(K)
@@ -5,7 +6,8 @@ module Example (K : Interface.S) = struct
 
   let integers (qo : int K.out_port) : unit K.process =
     let rec loop n =
-      (K.put n qo) >>= (fun () -> loop (n + 1))
+        (K.put n qo) >>= (fun () -> loop (n + 1))
+    
     in
     loop 2
 
@@ -26,4 +28,4 @@ module E = Example(Serveur)
 let () =
 if Sys.argv.(1) = "c" then 
 Serveur.go (int_of_string Sys.argv.(2)) () 
-else (print_int 3;E.K.run E.main )
+else (E.K.run E.main )

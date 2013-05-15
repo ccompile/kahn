@@ -1,15 +1,17 @@
 open Unix
 
+
+type computer = {ip : string; port : int}
+
+
 type 'a process = (unit-> 'a)
-type 'a channel= Unix.file_descr
+type 'a channel= computer
 type 'a in_port = 'a channel
 type 'a out_port = 'a channel
 
 (*Partie réseau *)
-
-type computer = {ip : string; port : int}
-
-let available = [{ip="127.0.0.1";port=24};{ip="127.0.0.1";port=20};{ip="127.0.0.1";port=25}] 
+let available =
+[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20000};{ip="127.0.0.1";port=20005}] 
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
@@ -21,8 +23,7 @@ let send_string sock str =
 let rec do_listen () =
         let (client_sock, _) = accept listen_sock in
          (*Début phase de traitement de la requete client*)
-        let channel = Unix.in_channel_of_descr client_sock and
-        outchan = Unix.out_channel_of_descr client_sock in
+        let channel = Unix.in_channel_of_descr client_sock in
         let f = Marshal.from_channel channel in
          f  (); print_newline() ;print_int 5; 
          send_string client_sock "end";
@@ -35,7 +36,9 @@ thread?*)
         do_listen ()
 
 let go port () =
-   Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string
+   setsockopt listen_sock SO_REUSEADDR true ;
+   
+    Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string
 "0.0.0.0",port));
         Unix.listen listen_sock (List.length available +1);
       do_listen () 
@@ -47,24 +50,50 @@ let go port () =
 
 
   let new_channel () =
-     (Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0,
-     Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0
-      ) 
+  let rand = Random.int 5000 in 
+       ({ip="127.0.0.1";port=1000},{ip="127.0.0.1";port=1000})
+
 
   let put element chan () =
-    let channel = Unix.out_channel_of_descr chan in
-    Marshal.to_channel channel element [ Marshal.Closures ]
-
-  let get chan () = 
-    let channel = Unix.in_channel_of_descr chan in
-     (Marshal.from_channel channel)  
+    (*    connection, lecture, fermeture *)
+    let socket = Unix.socket PF_INET SOCK_STREAM 0 in
+    setsockopt socket SO_REUSEADDR true ;
+     Unix.bind (socket) (Unix.ADDR_INET (Unix.inet_addr_of_string
+"0.0.0.0",chan.port));
+    Unix.listen (socket) 5;
+    let (chan1,_)=accept (socket) in 
+    let channel = Unix.out_channel_of_descr chan1 in
+    Marshal.to_channel channel element [ Marshal.Closures ];
+    flush_all ();
+    close socket
+    
+     
+   
+       
+  let get chan () =
+    (* connection , lecture , fermeture*)
+    let host = Unix.gethostbyname chan.ip in
+    let port = chan.port in
+    let ip_addr = host.Unix.h_addr_list.(0) in
+    let addr= Unix.ADDR_INET(ip_addr,port) in 
+    let socket = Unix.socket PF_INET SOCK_STREAM 0 in
+    let rec tryco () =
+      try
+        Unix.connect socket addr; 
+      with _-> tryco () in
+    tryco ();
+    let channel = Unix.in_channel_of_descr socket in
+    let a= (Marshal.from_channel channel) in     
+      close socket;
+      a
+      
 
   let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with
-      | _,[] -> print_int 8;print_newline()
+      | _,[] -> print_newline()
       | [],_ -> diffuse available jobs 
       | t::q, r::s ->
-    let (in1,out1) = new_channel () 
+    let out1 = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0  
       and host = Unix.gethostbyname t.ip  
       and port = t.port
         in
@@ -73,10 +102,11 @@ let go port () =
          let addr=Unix.ADDR_INET(ip_addr,port) in
         begin
          try Unix.connect out1 addr;
-          put r out1 ();
+          let channel = Unix.out_channel_of_descr out1 in
+          Marshal.to_channel channel r [ Marshal.Closures ];
           flush_all();
-         diffuse q s;
-         ignore(Unix.read out1 buffer 0 3);
+          diffuse q s;
+          ignore(Unix.read out1 buffer 0 3);
           print_string buffer;
           print_newline();  
       Unix.close out1 
