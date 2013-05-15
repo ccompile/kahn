@@ -1,5 +1,6 @@
 open Unix
 
+
 type 'a process = (unit-> 'a)
 type 'a channel= Unix.file_descr
 type 'a in_port = 'a channel
@@ -9,9 +10,8 @@ type 'a out_port = 'a channel
 
 type computer = {ip : string; port : int}
 
-let available = [{ip="127.0.0.1";port=20}] 
+let available = [{ip="129.199.224.148";port=20};{ip="127.0.0.1";port=25}] 
 
-let port = 20
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
 let send_string sock str =
@@ -21,13 +21,13 @@ let send_string sock str =
 
 let rec do_listen () =
         let (client_sock, _) = accept listen_sock in
-        (*Début phase de traitement de la requete client*)
-        let channel = Unix.in_channel_of_descr client_sock in
-        let f = (Marshal.from_channel channel: 'a process) in
-        
-        print_newline(); 
+         (*Début phase de traitement de la requete client*)
+        let channel = Unix.in_channel_of_descr client_sock and
+        outchan = Unix.out_channel_of_descr client_sock in
+        let f = Marshal.from_channel channel in
         ignore(Thread.create 
-        (fun ()-> (f (); send_string client_sock "end"))  () );
+        (fun ()-> (f  () ;print_int 5; send_string
+client_sock "end"))  () );
 
 (*TODO: verif mon ignore arnaque:  a-t-on reellement pas besoin du
 thread?*)
@@ -36,11 +36,11 @@ thread?*)
         close client_sock;
         do_listen ()
 
-let go () =
+let go port () =
    Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string
-"127.0.0.1",port));
-        Unix.listen listen_sock (List.length available);
-        do_listen () 
+"0.0.0.0",port));
+        Unix.listen listen_sock (List.length available +1);
+      do_listen () 
 
 
 
@@ -55,7 +55,7 @@ let go () =
 
   let put element chan () =
     let channel = Unix.out_channel_of_descr chan in
-    Marshal.to_channel channel element [ Marshal.Closures ] 
+    Marshal.to_channel channel element [ Marshal.Closures ]
 
   let get chan () = 
     let channel = Unix.in_channel_of_descr chan in
@@ -63,7 +63,7 @@ let go () =
 
   let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with
-      | _,[] -> ()
+      | _,[] -> print_int 8;print_newline()
       | [],_ -> diffuse available jobs 
       | t::q, r::s ->
     let (in1,out1) = new_channel () 
@@ -73,11 +73,18 @@ let go () =
          let buffer = String.create 3 in
          let ip_addr=host.Unix.h_addr_list.(0) in
          let addr=Unix.ADDR_INET(ip_addr,port) in
-         Unix.connect out1 addr;    
-         put r out1 ();
+        begin
+         try Unix.connect out1 addr;
+          put r out1 ();
+          flush_all();
          diffuse q s;
-         ignore(Unix.read out1 buffer 0 3); 
-          in 
+         ignore(Unix.read out1 buffer 0 3);
+          print_string buffer;
+          print_newline();  
+      Unix.close out1 
+        with _->( diffuse q (r::s)) 
+        end;    
+                  in 
     diffuse available l
 (*TODO : attendre la réponse de terminaison avant de continuer
 c'est la sémantique du doco*)

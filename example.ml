@@ -25,5 +25,5 @@ module E = Example(Serveur)
 
 let () =
 if Sys.argv.(1) = "c" then 
-Serveur.go () 
-else (Thread.create (Serveur.go) () ;print_int 1;E.K.run E.main )
+Serveur.go (int_of_string Sys.argv.(2)) () 
+else (print_int 3;E.K.run E.main )
