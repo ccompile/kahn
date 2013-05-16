@@ -11,7 +11,8 @@ type 'a out_port = 'a channel
 
 (*Partie réseau *)
 let available =
-[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20000};{ip="127.0.0.1";port=20005}] 
+[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tetragone";port=20000};
+{ip="trolle";port=20000};{ip="tetragone";port=20000}] 
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
@@ -25,14 +26,9 @@ let rec do_listen () =
          (*Début phase de traitement de la requete client*)
         let channel = Unix.in_channel_of_descr client_sock in
         let f = (Marshal.from_channel channel : 'a process) in
-         f  (); print_newline() ;print_int 5; 
-         send_string client_sock "end";
-
-(*TODO: verif mon ignore arnaque:  a-t-on reellement pas besoin du
-thread?*)
-
+         f (); 
+         send_string client_sock "end";close client_sock;
         (*********Fin**********)
-        close client_sock;
         do_listen ()
 
 let go port () =
@@ -50,8 +46,10 @@ let go port () =
 
 
   let new_channel () =
-  let rand = Random.int 5000 in 
-       ({ip="127.0.0.1";port=1000+rand},{ip="127.0.0.1";port=1000+rand})
+  let rand = Random.int 50000 in 
+    let host = Unix.gethostbyname "localhost" in
+    let ip_addr = host.Unix.h_addr_list.(0) in
+       ({ip=string_of_inet_addr ip_addr;port=1000+rand},{ip=string_of_inet_addr ip_addr;port=1000+rand})
 
 
   let put element chan () =
