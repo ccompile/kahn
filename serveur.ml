@@ -24,7 +24,7 @@ let rec do_listen () =
         let (client_sock, _) = accept listen_sock in
          (*Début phase de traitement de la requete client*)
         let channel = Unix.in_channel_of_descr client_sock in
-        let f = Marshal.from_channel channel in
+        let f = (Marshal.from_channel channel : 'a process) in
          f  (); print_newline() ;print_int 5; 
          send_string client_sock "end";
 
