@@ -49,7 +49,8 @@ let go port () =
   let rand = Random.int 50000 in 
     let host = Unix.gethostbyname "localhost" in
     let ip_addr = host.Unix.h_addr_list.(0) in
-       ({ip=string_of_inet_addr ip_addr;port=1000+rand},{ip=string_of_inet_addr ip_addr;port=1000+rand})
+       ({ip=string_of_inet_addr
+ip_addr;port=1025+rand},{ip=string_of_inet_addr ip_addr;port=1025+rand})
 
 
   let put element chan () =
