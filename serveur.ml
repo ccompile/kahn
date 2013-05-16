@@ -58,6 +58,7 @@ let go port () =
     (*    connection, lecture, fermeture *)
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
     setsockopt socket SO_REUSEADDR true ;
+    Unix.setsockopt_optint socket SO_LINGER (None); 
      Unix.bind (socket) (Unix.ADDR_INET (Unix.inet_addr_of_string
 "0.0.0.0",chan.port));
     Unix.listen (socket) 5;
@@ -65,7 +66,7 @@ let go port () =
     let channel = Unix.out_channel_of_descr chan1 in
     Marshal.to_channel channel element [ Marshal.Closures ];
     flush_all ();
-    close_out channel;
+   close_out channel;
     close socket
     
      
@@ -78,21 +79,14 @@ let go port () =
     let ip_addr = host.Unix.h_addr_list.(0) in
     let addr= Unix.ADDR_INET(ip_addr,port) in 
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
-    let rec boucle ()=
-    try
-    Unix.connect socket addr; 
+    Unix.setsockopt_optint socket SO_LINGER (Some(0)); 
+    Unix.connect socket addr;
     let channel = Unix.in_channel_of_descr socket in
-    let a =(Marshal.from_channel channel) in     
-     let i = ref 0 in 
-      (*while !i < 500000 do 
-      incr i;
-      done;*)
-      close_in channel;
-      a
-    with _-> boucle () in
-    boucle ()
-
-  let doco l () =
+    let a = (Marshal.from_channel channel) in     
+         close_in channel;
+          a
+  
+let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with
       | _,[] -> print_newline()
       | [],_ -> diffuse available jobs 
