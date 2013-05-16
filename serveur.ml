@@ -51,7 +51,7 @@ let go port () =
 
   let new_channel () =
   let rand = Random.int 5000 in 
-       ({ip="127.0.0.1";port=1000},{ip="127.0.0.1";port=1000})
+       ({ip="127.0.0.1";port=1000+rand},{ip="127.0.0.1";port=1000+rand})
 
 
   let put element chan () =
@@ -65,6 +65,7 @@ let go port () =
     let channel = Unix.out_channel_of_descr chan1 in
     Marshal.to_channel channel element [ Marshal.Closures ];
     flush_all ();
+    close_out channel;
     close socket
     
      
@@ -77,16 +78,19 @@ let go port () =
     let ip_addr = host.Unix.h_addr_list.(0) in
     let addr= Unix.ADDR_INET(ip_addr,port) in 
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
-    let rec tryco () =
-      try
-        Unix.connect socket addr; 
-      with _-> tryco () in
-    tryco ();
+    let rec boucle ()=
+    try
+    Unix.connect socket addr; 
     let channel = Unix.in_channel_of_descr socket in
-    let a= (Marshal.from_channel channel) in     
-      close socket;
+    let a =(Marshal.from_channel channel) in     
+     let i = ref 0 in 
+      (*while !i < 500000 do 
+      incr i;
+      done;*)
+      close_in channel;
       a
-      
+    with _-> boucle () in
+    boucle ()
 
   let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with

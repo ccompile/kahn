@@ -1,4 +1,3 @@
-
 module Example (K : Interface.S) = struct
   module K = K
   module Lib = Kahn.Lib(K)
