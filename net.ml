@@ -4,7 +4,7 @@ open Unix
 type computer = {ip:string; port:int}
 
 type 'a process = (unit-> 'a)
-type 'a channel= computer * int
+type 'a channel= {id:int; respo:int}
 type 'a in_port = 'a channel
 type 'a out_port = 'a channel
 
@@ -20,37 +20,37 @@ let available =
 let listen_sock = (Unix.socket PF_INET SOCK_STREAM 0)
 let nbmachines = (Array.length available)
 
-(* Flag global pour tout arrêter *)
+(* Mutex d'attente de la fin de l'initialisation *)
 let init_complete = Mutex.create ()
-let running = ref true
+(* Décompte du nombre de connexions ouvertes (pour les messages) *)
 let opened_sockets = ref 0
+(* Flag global pour tout arrêter *)
+let running = ref true
 
 (* Sockets vers les autres machines, pour les messages *)
 let mesg_sockets = Array.make nbmachines (Unix.stdin)
+(* Locks pour garantir qu'il n'y a qu'un seul message envoyé simultanément à une
+ * machine *)
 let mesg_lock = Array.make nbmachines (Mutex.create ())
-let waiting_clients = Hashtbl.create 100
-let waiting_messages = Hashtbl.create 100
-
-(* Fonctions de manipulation des Hashtbl renvoyant des listes *)
-let find_or_empty tbl key =
-    (try
-        Hashtbl.find tbl key
-    with Not_found -> [])
-
-let push_elem tbl key elem =
-    let curval = find_or_empty tbl key in
-    Hashtbl.replace tbl key (elem::curval)
+(* Table des chan -> clients en attente d'un message sur ce chan *)
+let waiting_clients = Lockedtable.create 100
+(* Table des chan -> messages en attente d'un client qui écoute sur ce chan
+ * (pour les chans gérés par cette machine) *)
+let waiting_messages = Lockedtable.create 100
+(* Table des chan -> processus locaux écoutant actuellement sur ces chan
+ * et attendant une valeur pour continuer *)
+let waiting_processes = Lockedtable.create 100
 
 (* Attente d'une connexion sur un port et exécution d'une fonction
  * sur les données envoyées à la suite de la connexion *)
 let rec listen_and_run sock (action : 'a -> file_descr -> unit) =
-        let (client_sock, _) = accept sock in
-         (*Début phase de traitement de la requete client*)
-        let channel = Unix.in_channel_of_descr client_sock in
-        let f = (Marshal.from_channel channel : 'a) in
-        action f client_sock;
-        (*********Fin**********)
-        listen_and_run sock action
+    let (client_sock, _) = accept sock in
+     (*Début phase de traitement de la requete client*)
+    let channel = Unix.in_channel_of_descr client_sock in
+    let f = (Marshal.from_channel channel : 'a) in
+    action f client_sock;
+    (*********Fin**********)
+    listen_and_run sock action
 
 (* Attendre les connexions entrantes des autres machines.
  * Ces connexions sont conservées pour transmettre les messages. *)
@@ -90,39 +90,79 @@ let init_msg_conns machine_idx =
         if !opened_sockets = nbmachines-1 then
             Mutex.unlock init_complete
     done
-              
-(* Send a message to a client *)
-let send_message machine_id chan_id str =
+    
+type protocol =
+  | Put of int (*chan*) * int (*length*)
+  | Get of int (*chan*)    
+  | Give of int (*chan*) * int (*length*)
+
+(* Send a message to a pair *)
+let send_message machine_id header str =
     Mutex.lock mesg_lock.(machine_id);
     let channel = Unix.out_channel_of_descr mesg_sockets.(machine_id) in
-    Marshal.to_channel channel (chan_id, String.length str) [Marshal.Closures];
-    output_string channel str;
+    Marshal.to_channel channel header [Marshal.Closures];
+    (match str with
+     | Some(s) -> output_string channel s;
+     | None -> ());
     flush channel;
     Mutex.unlock mesg_lock.(machine_id)
+
+let send_put machine_id chan_id str =
+    send_message machine_id (Put(chan_id,String.length str)) (Some str)
+
+let send_give machine_id chan_id str =
+    send_message machine_id (Give(chan_id,String.length str)) (Some str)
 
 (* Relay messages to clients *)
 let start_relay () =
     let relay_from client_id =
-        let sock = mesg_sockets.(client_id) in
-        let channel = Unix.in_channel_of_descr sock in
-        while !running do
-            let (chanid,length) = (Marshal.from_channel channel : (int*int)) in
-            let buf = String.create (length+1) in
-            really_input channel buf 0 length;
-        
-            Printf.printf "Got message : chan %d, contents : %s\n%!"
-            chanid buf;
-            (match find_or_empty waiting_clients chanid with
-             | [] -> push_elem waiting_messages chanid buf
-             | h::t -> send_message h chanid buf;
-                       Hashtbl.replace waiting_clients chanid t)    
-        done
+        try
+            let sock = mesg_sockets.(client_id) in
+            let channel = Unix.in_channel_of_descr sock in
+            while !running do
+                let header = (Marshal.from_channel channel : protocol) in
+(*TODO : add a mutex so that only one guy has acces to the hashtables *)
+                (match header with
+                 | Put(chanid,length) ->
+                    let buf = String.create (length+1) in
+                    really_input channel buf 0 length;
+                    Printf.printf "Got message : chan %d, contents : %s\n%!"
+                    chanid buf;
+                    (match Lockedtable.find_or_empty waiting_clients chanid with
+                     | [] -> Lockedtable.push_elem waiting_messages chanid buf
+                     | h::t -> send_give h chanid buf;
+                               Lockedtable.replace waiting_clients chanid t)    
+                 | Get(chanid) ->
+                    (match Lockedtable.find_or_empty waiting_messages chanid with
+                     | [] -> Lockedtable.push_elem waiting_clients chanid client_id
+                     | h::t -> send_give client_id chanid h;
+                               Lockedtable.replace waiting_messages chanid t)
+                 | Give(chanid,length) ->
+                    let buf = String.create (length+1) in
+                    really_input channel buf 0 length;
+                    (match Lockedtable.find_or_empty waiting_processes chanid with
+                     | [] -> () (* message ignoré *)
+                     | (mtx,v)::t -> v := buf;
+                                     Mutex.unlock mtx))
+            done
+        with End_of_file ->
+            Printf.eprintf "Pair %d has disconnected.\n%!" client_id;
+            Thread.exit ()
     in
     let threads = Array.init nbmachines
-        (Thread.create relay_from) in
+    (Thread.create relay_from) in
     for i = 0 to nbmachines-1 do
         Thread.join threads.(i)
-    done;
-    Mutex.unlock init_complete;
+    done
+    
+let put chan obj =
+    send_put chan.respo chan.id (Marshal.to_string obj [Marshal.Closures])
 
+let get (chan : 'a channel) () =
+    let mtx = Mutex.create () in
+    let marshalled_val = ref "" in
+    Mutex.lock mtx;
+    Lockedtable.push_elem waiting_processes chan.id (mtx,marshalled_val);
+    Mutex.lock mtx;
+    (Marshal.from_string !marshalled_val : 'a)
 
