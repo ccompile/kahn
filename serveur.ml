@@ -46,16 +46,17 @@ let go port () =
 
 
   let new_channel () =
-  let rand = Random.int 50000 in 
+  let rand = Random.int 5000 in 
     let host = Unix.gethostbyname "localhost" in
     let ip_addr = host.Unix.h_addr_list.(0) in
   let chan =({ip=string_of_inet_addr ip_addr;port=1025+rand},
 {ip=string_of_inet_addr ip_addr;port=1025+rand})
 in
 
- 
-    Thread.create (fun ()->
     
+    Thread.create 
+  (
+    fun ()->
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
     setsockopt socket SO_REUSEADDR true ;
     Unix.setsockopt_optint socket SO_LINGER (None); 
@@ -63,29 +64,30 @@ in
      (Unix.ADDR_INET 
         (Unix.inet_addr_of_string "0.0.0.0",(fst chan).port)
      );
-    Unix.listen (socket) 5;
-    let rec retransmit e = 
+    Unix.listen (socket) 5; 
+    let rec retransmit () = 
       let (chan1,_)=accept (socket) in
       (*On commence par savoir si c'est un put ou un get*)
-    let buffer1 = String.create 3 in
-    ignore(Unix.read socket buffer1 0 3);     
+       let buffer1 = String.create 3 in
+       ignore(Unix.read chan1 buffer1 0 3);     
     if (buffer1="put")
       then
       (*Si put*)     
       (  
-        let channel = Unix.in_channel_of_descr socket in
+        let channel = Unix.in_channel_of_descr chan1 in
         let a = (Marshal.from_channel channel) in  
         let (chan2,_)=accept (socket) in
-
+       ignore(Unix.read chan2 buffer1 0 3);     
       (*Envoyer a sur le chan2 *)
         let channelout = Unix.out_channel_of_descr chan2 in
         Marshal.to_channel channelout a [ Marshal.Closures ];
+        flush_all ();
       (*Dire au puter que c'est ok*) 
         send_string chan1 "end";
       
      (* close chan2;
-        close chan1;*)
-        close_in channel;
+        close chan1;
+      *)  close_in channel;
         close_out channelout; 
         retransmit()
       )
@@ -93,20 +95,22 @@ in
       else
       (
         let (chan2,_)=accept (socket) in      
+       ignore(Unix.read chan2 buffer1 0 3);     
+        let channel = Unix.in_channel_of_descr chan2 in
       (*Attente d'un put et transmission sur le chan1*)
-        let channel = Unix.in_channel_of_descr chan2 in 
         let a = (Marshal.from_channel channel) in
 
-        let channelout= Unix.out_channel_of_descr chan2 in
+        let channelout= Unix.out_channel_of_descr chan1 in
         Marshal.to_channel channelout a [ Marshal.Closures ] ; 
+        flush_all (); 
       (*Dire au puter que c'est ok *)
-        send_string chan1 "end" ;
+        send_string chan2 "end" ;
         close_in channel;
         close_out channelout;
         retransmit ()
       )
       in
-    retransmit()
+      retransmit()
     )
   ();
   chan
@@ -119,18 +123,24 @@ in
     let ip_addr = host.Unix.h_addr_list.(0) in
     let addr= Unix.ADDR_INET(ip_addr,port) in 
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
-    Unix.setsockopt_optint socket SO_LINGER (Some(0));(*NONE*) 
-    Unix.connect socket addr;
-    send_string socket "put" ;
-    let channel = Unix.in_channel_of_descr socket in
-    let a = (Marshal.from_channel channel) in     
-    (*Attente d'un get*)     
-    let buffer = String.create 3 in
-    ignore(Unix.read socket buffer 0 3);
-    close_in channel;
-          a
+    Unix.setsockopt_optint socket SO_LINGER (None);(*NONE*) 
+    let rec dodo ()=
+    try 
+      Unix.connect socket addr;
+      send_string socket "put" ;
+      let channel = Unix.out_channel_of_descr socket in
+      Marshal.to_channel channel element [ Marshal.Closures ] ; 
+      flush_all (); 
+      (*Attente d'un get*)     
+      let buffer = String.create 3 in
+      ignore(Unix.read socket buffer 0 3);
+      (*Attente d'un get*)     
+      close_out channel;
+          
+    with _-> dodo ()  
     
-     
+    in
+    dodo ()     
    
        
   let get chan () =
@@ -141,12 +151,17 @@ in
     let addr= Unix.ADDR_INET(ip_addr,port) in 
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
     Unix.setsockopt_optint socket SO_LINGER (Some(0)); 
-    Unix.connect socket addr;
-    send_string socket "get" ;
-    let channel = Unix.in_channel_of_descr socket in
-    let a = (Marshal.from_channel channel) in     
-         close_in channel;
-          a
+    let rec dodo () =
+    try
+      Unix.connect socket addr;
+      send_string socket "get" ;
+      let channel = Unix.in_channel_of_descr socket in
+      let a = (Marshal.from_channel channel) in     
+            close_in channel;
+             a
+    with _-> dodo() 
+    in
+    dodo()
   
 let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with
