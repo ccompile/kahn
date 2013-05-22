@@ -19,6 +19,7 @@ let available =
 
 let listen_sock = (Unix.socket PF_INET SOCK_STREAM 0)
 let nbmachines = (Array.length available)
+let my_machine_id = ref 0 (* TODO *)
 
 (* Mutex d'attente de la fin de l'initialisation *)
 let init_complete = Mutex.create ()
@@ -165,4 +166,7 @@ let get (chan : 'a channel) () =
     Lockedtable.push_elem waiting_processes chan.id (mtx,marshalled_val);
     Mutex.lock mtx;
     (Marshal.from_string !marshalled_val : 'a)
+
+let new_channel () =
+    {id: Random.bits (); respo: !my_machine_id} 
 
