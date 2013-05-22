@@ -49,24 +49,86 @@ let go port () =
   let rand = Random.int 50000 in 
     let host = Unix.gethostbyname "localhost" in
     let ip_addr = host.Unix.h_addr_list.(0) in
-       ({ip=string_of_inet_addr
-ip_addr;port=1025+rand},{ip=string_of_inet_addr ip_addr;port=1025+rand})
+  let chan =({ip=string_of_inet_addr ip_addr;port=1025+rand},
+{ip=string_of_inet_addr ip_addr;port=1025+rand})
+in
 
-
-  let put element chan () =
-    (*    connection, lecture, fermeture *)
+ 
+    Thread.create (fun ()->
+    
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
     setsockopt socket SO_REUSEADDR true ;
     Unix.setsockopt_optint socket SO_LINGER (None); 
-     Unix.bind (socket) (Unix.ADDR_INET (Unix.inet_addr_of_string
-"0.0.0.0",chan.port));
+     Unix.bind (socket)
+     (Unix.ADDR_INET 
+        (Unix.inet_addr_of_string "0.0.0.0",(fst chan).port)
+     );
     Unix.listen (socket) 5;
-    let (chan1,_)=accept (socket) in 
-    let channel = Unix.out_channel_of_descr chan1 in
-    Marshal.to_channel channel element [ Marshal.Closures ];
-    flush_all ();
-   close_out channel;
-    close socket
+    let rec retransmit e = 
+      let (chan1,_)=accept (socket) in
+      (*On commence par savoir si c'est un put ou un get*)
+    let buffer1 = String.create 3 in
+    ignore(Unix.read socket buffer1 0 3);     
+    if (buffer1="put")
+      then
+      (*Si put*)     
+      (  
+        let channel = Unix.in_channel_of_descr socket in
+        let a = (Marshal.from_channel channel) in  
+        let (chan2,_)=accept (socket) in
+
+      (*Envoyer a sur le chan2 *)
+        let channelout = Unix.out_channel_of_descr chan2 in
+        Marshal.to_channel channelout a [ Marshal.Closures ];
+      (*Dire au puter que c'est ok*) 
+        send_string chan1 "end";
+      
+     (* close chan2;
+        close chan1;*)
+        close_in channel;
+        close_out channelout; 
+        retransmit()
+      )
+      (*Si get *)
+      else
+      (
+        let (chan2,_)=accept (socket) in      
+      (*Attente d'un put et transmission sur le chan1*)
+        let channel = Unix.in_channel_of_descr chan2 in 
+        let a = (Marshal.from_channel channel) in
+
+        let channelout= Unix.out_channel_of_descr chan2 in
+        Marshal.to_channel channelout a [ Marshal.Closures ] ; 
+      (*Dire au puter que c'est ok *)
+        send_string chan1 "end" ;
+        close_in channel;
+        close_out channelout;
+        retransmit ()
+      )
+      in
+    retransmit()
+    )
+  ();
+  chan
+      
+  
+  let put element chan () =
+     (* connection , lecture , fermeture*)
+    let host = Unix.gethostbyname chan.ip in
+    let port = chan.port in
+    let ip_addr = host.Unix.h_addr_list.(0) in
+    let addr= Unix.ADDR_INET(ip_addr,port) in 
+    let socket = Unix.socket PF_INET SOCK_STREAM 0 in
+    Unix.setsockopt_optint socket SO_LINGER (Some(0));(*NONE*) 
+    Unix.connect socket addr;
+    send_string socket "put" ;
+    let channel = Unix.in_channel_of_descr socket in
+    let a = (Marshal.from_channel channel) in     
+    (*Attente d'un get*)     
+    let buffer = String.create 3 in
+    ignore(Unix.read socket buffer 0 3);
+    close_in channel;
+          a
     
      
    
@@ -80,6 +142,7 @@ ip_addr;port=1025+rand},{ip=string_of_inet_addr ip_addr;port=1025+rand})
     let socket = Unix.socket PF_INET SOCK_STREAM 0 in
     Unix.setsockopt_optint socket SO_LINGER (Some(0)); 
     Unix.connect socket addr;
+    send_string socket "get" ;
     let channel = Unix.in_channel_of_descr socket in
     let a = (Marshal.from_channel channel) in     
          close_in channel;
