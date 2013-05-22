@@ -11,8 +11,8 @@ type 'a out_port = 'a channel
 
 (*Partie réseau *)
 let available =
-[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tetragone";port=20000};
-{ip="trolle";port=20000};{ip="tetragone";port=20000}] 
+[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tulipier";port=20000};
+{ip="trolle";port=20000};{ip="tonka";port=20000}] 
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
