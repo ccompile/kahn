@@ -47,12 +47,11 @@ let go port () =
 
   let new_channel () =
   let rand = Random.int 5000 in 
-    let host = Unix.gethostbyname "localhost" in
+    let host = Unix.gethostbyname (Unix.gethostname ()) in
     let ip_addr = host.Unix.h_addr_list.(0) in
   let chan =({ip=string_of_inet_addr ip_addr;port=1025+rand},
 {ip=string_of_inet_addr ip_addr;port=1025+rand})
 in
-
     
     Thread.create 
   (
@@ -113,6 +112,7 @@ in
       retransmit()
     )
   ();
+  print_string"chancreated"; print_newline();
   chan
       
   
