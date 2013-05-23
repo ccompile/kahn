@@ -20,6 +20,8 @@ let available =
 let listen_sock = (Unix.socket PF_INET SOCK_STREAM 0)
 let nbmachines = (Array.length available)
 let my_machine_id = ref 0 (* TODO *)
+let next_fresh_channel = ref 0
+let next_doco_id = ref 0
 
 (* Mutex d'attente de la fin de l'initialisation *)
 let init_complete = Mutex.create ()
@@ -41,6 +43,8 @@ let waiting_messages = Lockedtable.create 100
 (* Table des chan -> processus locaux écoutant actuellement sur ces chan
  * et attendant une valeur pour continuer *)
 let waiting_processes = Lockedtable.create 100
+(* Sémaphores correspondant à chaque doco lancé en local *)
+let doco_semaphores = Lockedtable.create 100
 
 (* Attente d'une connexion sur un port et exécution d'une fonction
  * sur les données envoyées à la suite de la connexion *)
@@ -55,7 +59,8 @@ let rec listen_and_run sock (action : 'a -> file_descr -> unit) =
 
 (* Attendre les connexions entrantes des autres machines.
  * Ces connexions sont conservées pour transmettre les messages. *)
-let receive_msg_conns machine_idx =
+let receive_msg_conns () =
+   let machine_idx = !my_machine_id in
    let register_sock remote_idx sock =
        mesg_sockets.(remote_idx) <- sock;
        incr opened_sockets;
@@ -76,7 +81,8 @@ let wait_init_end () =
     Mutex.lock init_complete
 
 (* Crée des connexions avec les autres machines d'index inférieur *)
-let init_msg_conns machine_idx =
+let init_msg_conns () =
+    let machine_idx = !my_machine_id in
     for i = 0 to machine_idx-1 do
         let socket = Unix.socket PF_INET SOCK_STREAM 0 in
         setsockopt socket SO_REUSEADDR true ;
@@ -96,6 +102,8 @@ type protocol =
   | Put of int (*chan*) * int (*length*)
   | Get of int (*chan*)    
   | Give of int (*chan*) * int (*length*)
+  | Exec of int (* doco_id *) * int (*length*)
+  | Done of int (* doco_id *)
 
 (* Send a message to a pair *)
 let send_message machine_id header str =
@@ -122,7 +130,6 @@ let start_relay () =
             let channel = Unix.in_channel_of_descr sock in
             while !running do
                 let header = (Marshal.from_channel channel : protocol) in
-(*TODO : add a mutex so that only one guy has acces to the hashtables *)
                 (match header with
                  | Put(chanid,length) ->
                     let buf = String.create (length+1) in
@@ -144,7 +151,19 @@ let start_relay () =
                     (match Lockedtable.find_or_empty waiting_processes chanid with
                      | [] -> () (* message ignoré *)
                      | (mtx,v)::t -> v := buf;
-                                     Mutex.unlock mtx))
+                                     Mutex.unlock mtx)
+ 		 | Exec(doco_id, length) ->
+  		    let buf = String.create (length+1) in
+		    really_input channel buf 0 length;
+		    let fn = (Marshal.from_string buf : unit process) in
+		    Thread.create
+			(fun () ->
+				fn ();
+				send_done client_id doco_id) ()
+		 | Done(doco_id) ->
+		    (* TODO : decrease semaphore *) ()
+				
+		)
             done
         with End_of_file ->
             Printf.eprintf "Pair %d has disconnected.\n%!" client_id;
@@ -156,7 +175,7 @@ let start_relay () =
         Thread.join threads.(i)
     done
     
-let put chan obj =
+let put chan obj () =
     send_put chan.respo chan.id (Marshal.to_string obj [Marshal.Closures])
 
 let get (chan : 'a channel) () =
@@ -168,5 +187,37 @@ let get (chan : 'a channel) () =
     (Marshal.from_string !marshalled_val : 'a)
 
 let new_channel () =
-    {id: Random.bits (); respo: !my_machine_id} 
+    incr next_fresh_channel;
+    {id=(!next_fresh_channel); respo= (!my_machine_id)} 
+
+
+let global_init machine_id =
+    my_machine_id := machine_id;
+    let listener = Thread.create receive_msg_conns () in
+    Printf.printf "Please press ENTER to initiate the connection :";
+    let _ = read_line () in
+    init_msg_conns ();
+    start_relay ();
+    Thread.join listener;
+
+let run e = e ()
+
+let bind e f =
+    f (e ())
+
+let return a () = a
+
+let doco lst () =
+    incr next_doco_id;
+    let doco_id = !next_doco_id in
+    (* TODO : new semaphore *)
+    (* Lockedtable.replace *)
+    let send_process_to_a_random_guy f =
+	let guy = (Random.int nbmachines) in
+        let marshalled = Marshal.to_string f in
+        send_message guy (Exec(doco_id, String.length marshalled))
+	(Some marshalled)
+    in
+    List.iter lst send_process_to_a_random_guy;
+    (* TODO : wait for the semaphore *) ()
 

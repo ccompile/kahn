@@ -23,6 +23,8 @@ module Example (K : Interface.S) = struct
 
 end
 
-module E = Example(Pr)
+(* module E = Example(Net) *)
 
-let () = (E.K.run E.main )
+let () = 
+	Net.global_init (int_of_string Sys.argv.(1));
+	()
