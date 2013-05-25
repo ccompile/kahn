@@ -19,6 +19,17 @@ implémentations }
 \maketitle
 
 \section{Séquentielle}
+Dans cette implémentation, nous avons utilisé un type en quelque sortes "glaçon". Ceci
+nous permet de différencier un calcul qui est une valeur d'un calcul
+non-terminé.
+
+Ensuite durant un doco, on fait en sorte d'executer étape par étape les
+processus dans le but d'avoir la liste des processus qui sont des
+valeurs. Les évaluations se font circulairement, dans le but d'effectuer
+une distribution juste : donc un processus dont on vient de faire une
+étape va faire la queue pour qu'on lui fasse faire une deuxième étape.
+ 
+
 \section{Processus lourds}
 \section{Sockets}
 \subsection{Utilisation}
