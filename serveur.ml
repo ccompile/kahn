@@ -2,17 +2,42 @@ open Unix
 
 
 type computer = {ip : string; port : int}
-
-
 type 'a process = (unit-> 'a)
 type 'a channel= computer
 type 'a in_port = 'a channel
 type 'a out_port = 'a channel
+(*Création des machines*)
+
+let files_machine n sortie = 
+try
+let available = ref [] in
+let file = open_out sortie in
+for i=1 to n  do
+print_endline("Machine/Enter/Port/Enter");
+
+let ip = read_line () in
+let port = int_of_string (read_line ()) in
+available := ({ip=ip;port=port})::(!available) ;
+done;
+Marshal.to_channel file (!available)[Marshal.Closures];
+close_out file
+with _-> print_endline(
+      "Please use a correct syntax : ./example.native help");
+         ()
+
+
+
 
 (*Partie réseau *)
-let available =
+let  available = ref
 [{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tetragone";port=20000};
 {ip="turnep";port=20000};{ip="troene";port=20000}] 
+
+let build_available filecomput=
+let file = open_in filecomput in
+let a = Marshal.from_channel file in
+available := a
+
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
@@ -38,7 +63,7 @@ let go port () =
    
     Unix.bind listen_sock (Unix.ADDR_INET (Unix.inet_addr_of_string
 "0.0.0.0",port));
-        Unix.listen listen_sock (List.length available +1);
+        Unix.listen listen_sock (List.length !available +1);
       do_listen () 
 
 
@@ -168,7 +193,7 @@ in
 let doco l () =
     let rec diffuse computers jobs = match (computers,jobs) with
       | _,[] -> print_newline()
-      | [],_ -> diffuse available jobs 
+      | [],_ -> diffuse !available jobs 
       | t::q, r::s ->
     let out1 = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0  
       and host = Unix.gethostbyname t.ip  
@@ -190,7 +215,7 @@ let doco l () =
         with _->( diffuse q (r::s)) 
         end;    
                   in 
-    diffuse available l
+    diffuse !available l
 (*TODO : attendre la réponse de terminaison avant de continuer
 c'est la sémantique du doco*)
 
