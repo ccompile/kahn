@@ -28,16 +28,16 @@ des machines disponibles pour executer des processus. Toutes ces machines seront
 interconnectées avec une architecture décentralisée, il faut donc
 qu'elles connaissent toutes la liste des ip des machines qui vont servir
 au calcul.
-Pour lancer les clients on utilise \texttt{./example.native c 20000
-fichiermachine} qui
-permet de lancer le client en attente de code à executer sur le port
-20000.
+Pour lancer les clients on utilise \texttt{./example.native c
+fichiermachine p} qui
+permet de lancer le client en attente de code à executer sur le port p.
 Pour lancer l'application initiatrice, on execute \texttt{./example.native s
 fichiermachine}
 Pour créer le fichier fichiermachine, on pourra utiliser l'application
-fournie \texttt{./example.native g fichiermachine} qui demandera interactivement à
+fournie \texttt{./example.native g nbrmachines fichiermachine} qui demandera à
 l'utilisateur le nom des machines ainsi que les ports utilisés pour la
 communication de code.
+
 \subsection{Architecture globale}
 La structure choisie est la suivante : au départ il y a disymétrie: une
 machine est initialisatrice, et les autres sont des clients en attente de
