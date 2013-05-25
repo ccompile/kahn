@@ -1,0 +1,98 @@
+\documentclass[a4paper]{article}
+
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{fullpage}
+\usepackage{pgf}
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata}
+\usetikzlibrary{positioning}
+
+\begin{document}
+
+\title{Réseaux de Kahn : différents choix pour différentes
+implémentations }
+\author{Antonin Delpeuch et Thomas Bourgeat}
+\date{\today}
+
+\maketitle
+
+\section{Séquentielle}
+\section{Processus lourds}
+\section{Sockets}
+\subsection{Utilisation}
+Pour utiliser cette implémentation il va falloir lancer 
+l'application sur plusieurs machines : une machine initialisatrice, et
+des machines disponibles pour executer des processus. Toutes ces machines seront
+interconnectées avec une architecture décentralisée, il faut donc
+qu'elles connaissent toutes la liste des ip des machines qui vont servir
+au calcul.
+Pour lancer les clients on utilise \texttt{./example.native c 20000
+fichiermachine} qui
+permet de lancer le client en attente de code à executer sur le port
+20000.
+Pour lancer l'application initiatrice, on execute \texttt{./example.native s
+fichiermachine}
+Pour créer le fichier fichiermachine, on pourra utiliser l'application
+fournie \texttt{./example.native g fichiermachine} qui demandera interactivement à
+l'utilisateur le nom des machines ainsi que les ports utilisés pour la
+communication de code.
+\subsection{Architecture globale}
+La structure choisie est la suivante : au départ il y a disymétrie: une
+machine est initialisatrice, et les autres sont des clients en attente de
+calcul. Mais quand une machine commence à executer du calcul elle peut
+alors diffuser à n'importe quelle autre machine du calcul. Le doco est la seule étape de
+parallelisation.
+
+Il y a donc deux types de communications : les communications de code, et
+les communication de données.
+
+
+Pour les channels, étant donné qu'une machine A peut créer un channel de
+communication qui servira entre les machines B et C, nous avons décidés
+de faire une architecture simple : A est un serveur pour ce channel.
+Quand B veut parler à C, il parle en fait à A, et A retransmet à C.
+Nous avons décidé de faire un put bloquant dans cette implémentation.
+
+
+Le protocole de communication sur le canal choisit est le suivant : 
+Si B communique avec C dans un channel crée par A ; du point de vue de A, deux cas sont
+possibles. Soit un get arrive en premier: 
+\begin{itemize}
+\item C fait un get.
+\item On attends un put de B.
+\item C confirme que tout s'est bien passé à B 
+\end{itemize}
+
+Ou alors un put arrive en premier :
+
+\begin{itemize}
+\item B fait un put.
+\item On attends un get de C
+\item C confirme que tout s'est bien passé, et l'étape s'est bien
+déroulé.
+\end{itemize}
+
+Bien entendu ce protocol naif empeche le put/put/get/get, mais il est
+possible de faire un put bloquant comme dans ce dernier schéma
+uniquement lorsqu'un buffer est plein (qui donc est ici de taille 1). Cependant nous avons décidé de ne
+pas nous attarder sur ces détails et plutot d'essayer divers autres
+stratégies de communication.
+
+D'autre parts, nous avons choisi d'utiliser le modèle suivant :\\
+Connection-Lecture/Écriture-Déconnection \\
+De ce fait, on effectue un grand nombre de connections. Cependant le
+serveur du channel reste toujours en écoute, sur la meme socket. Ceci
+limite donc un minimum la lourdeur du protocole.
+
+
+ 
+
+\section{Résultats}
+
+\section{Performances}
+
+\end{document}
+
+
