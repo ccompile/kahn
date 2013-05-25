@@ -9,12 +9,17 @@ exception RuntimeError
 
 let new_channel = Unix.pipe
 
+let pdeg =
+    Printf.printf "[%d] %s\n%!" (Unix.getpid ())
+
 let msend c v =
     let chan = Unix.out_channel_of_descr c in
+(*    pdeg "Marshal.to_channel"; *)
     Marshal.to_channel chan v flags;
-    flush chan
+    flush_all () 
 
 let mrecv (c : 'a in_port) =
+   (* pdeg "Mashal.from_channel"; *)
     ((Marshal.from_channel (Unix.in_channel_of_descr c)) : 'a)
 
 let return v out =

@@ -11,8 +11,8 @@ type 'a out_port = 'a channel
 
 (*Partie réseau *)
 let available =
-[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tulipier";port=20000};
-{ip="tamarin";port=20000};{ip="tonka";port=20000}] 
+[{ip="127.0.0.1";port=20004};{ip="127.0.0.1";port=20005};{ip="tetragone";port=20000};
+{ip="turnep";port=20000};{ip="troene";port=20000}] 
 
 let listen_sock = Unix.socket PF_INET SOCK_STREAM 0
 
@@ -22,12 +22,14 @@ let send_string sock str =
         ()
 
 let rec do_listen () =
-        let (client_sock, _) = accept listen_sock in
+	let (client_sock, _) = accept listen_sock in
          (*Début phase de traitement de la requete client*)
-        let channel = Unix.in_channel_of_descr client_sock in
+        
+        Thread.create (fun ()->
+	let channel = Unix.in_channel_of_descr client_sock in
         let f = (Marshal.from_channel channel : 'a process) in
          f (); 
-         send_string client_sock "end";close client_sock;
+         send_string client_sock "end";close client_sock) ();
         (*********Fin**********)
         do_listen ()
 
