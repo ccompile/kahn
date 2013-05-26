@@ -272,8 +272,8 @@ let init_msg_conns () =
         let socket = Unix.socket PF_INET SOCK_STREAM 0 in
         setsockopt socket SO_REUSEADDR true ;
         Unix.setsockopt_optint socket SO_LINGER (None); 
-        Unix.connect socket (Unix.ADDR_INET (Unix.inet_addr_of_string
-        available.(i).ip,available.(i).port));
+        Unix.connect socket (Unix.ADDR_INET ((Unix.gethostbyname
+        available.(i).ip).h_addr_list.(0),available.(i).port));
         let channel = Unix.out_channel_of_descr socket in
         Marshal.to_channel channel machine_idx [ Marshal.Closures ];
         flush channel;
