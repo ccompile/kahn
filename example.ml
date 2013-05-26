@@ -23,4 +23,3 @@ module Example (K : Interface.S) = struct
 
 end
 
-

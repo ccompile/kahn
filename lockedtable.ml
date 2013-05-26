@@ -9,10 +9,11 @@ let find_or_empty (mtx,tbl) key =
         v
     with Not_found -> Mutex.unlock mtx; [])
 
+
 let push_elem (mtx,tbl) key elem =
     let curval = find_or_empty (mtx,tbl) key in
     Mutex.lock mtx;
-    Hashtbl.replace tbl key (elem::curval);
+    Hashtbl.replace tbl key (curval @ [elem]);
     Mutex.unlock mtx
 
 let create initial_guess =
@@ -23,4 +24,5 @@ let replace (mtx,tbl) key elem =
     Hashtbl.replace tbl key elem;
     Mutex.unlock mtx
 
-
+let nb_elems locked_tbl key =
+    List.length (find_or_empty locked_tbl key)
