@@ -13,8 +13,8 @@ let code_port = 8042
 
 (* Machines disponibles *)
 let available =
-    [|{ip="127.0.0.1"; port=8030}; {ip="127.0.0.1"; port=8040};
-    {ip="127.0.0.1"; port=8050}|]
+    [|{ip="tulipier.ens.fr"; port=8030}; {ip="trolle.ens.fr"; port=8040};
+    {ip="tamier.ens.fr"; port=8050}|]
 let max_waiting_messages = 16
 let delay_before_retry = 0.01
 
