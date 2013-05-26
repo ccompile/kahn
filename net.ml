@@ -9,6 +9,12 @@ type 'a out_port = 'a channel
 
 (*Partie réseau *)
 
+
+(************************************************)
+(* TODO TODO TODO TODO TODO TODO TODO TODO TODO *)
+(************************************************)
+(* Remplacer les chan_id par des chan *)
+
 let code_port = 8042
 
 (* Machines disponibles *)
