@@ -23,7 +23,7 @@ module Example (K : Interface.S) = struct
 
 end
 
-module E = Example(Net)
+module E = Example(Seq)
 
 let () = E.K.run E.main 
 
