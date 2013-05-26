@@ -9,18 +9,12 @@ type 'a out_port = 'a channel
 
 (*Partie réseau *)
 
-
-(************************************************)
-(* TODO TODO TODO TODO TODO TODO TODO TODO TODO *)
-(************************************************)
-(* Remplacer les chan_id par des chan *)
-
 let code_port = 8042
 
 (* Machines disponibles *)
 let available =
-    [|{ip="tulipier.ens.fr"; port=8030}; {ip="trolle.ens.fr"; port=8040};
-    {ip="tamier.ens.fr"; port=8050}|]
+    [|{ip="127.0.0.1"; port=8030}; {ip="127.0.0.1"; port=8040};
+    {ip="127.0.0.1"; port=8050}|]
 let max_waiting_messages = 16
 let delay_before_retry = 0.01
 
@@ -130,7 +124,7 @@ let put obj chan () =
         else
           begin
             Mutex.lock mtx;
-            Lockedtable.push_elem chan_accepted chan.id (mtx,is_accepted);
+            Lockedtable.push_elem chan_accepted (chan.id,chan.respo) (mtx,is_accepted);
             send_put chan.respo chan.id marshalled;
             Thread.yield ();
             (* wait for Accepted message *)
@@ -149,7 +143,7 @@ let get (chan : 'a channel) () =
     let mtx = Mutex.create () in
     let marshalled_val = ref "" in
     Mutex.lock mtx;
-    Lockedtable.push_elem waiting_processes chan.id (mtx,marshalled_val);
+    Lockedtable.push_elem waiting_processes (chan.id,chan.respo) (mtx,marshalled_val);
     send_get chan.respo chan.id;
     Mutex.lock mtx;
     Mutex.unlock mtx;
@@ -212,11 +206,13 @@ let relay_from client_id =
 			    Lockedtable.replace waiting_messages chanid t)
 		| Give(chanid,length) ->
             let buf = String.create (length+1) in
+            let chan = (chanid,client_id) in
             really_input channel buf 0 length;
-            (match Lockedtable.find_or_empty waiting_processes chanid with
-            | [] -> Printf.eprintf "WARNING: Ignored Give\n%!"(* message ignoré *)
+            (match Lockedtable.find_or_empty waiting_processes
+            chan with
+            | [] -> Printf.eprintf "WARNING: Ignored Give\n%!"
 		    | (mtx,v)::t -> v := buf;
-                    Lockedtable.replace waiting_processes chanid t;
+                    Lockedtable.replace waiting_processes chan t;
 				    Mutex.unlock mtx)
 		| Exec(doco_id, length) ->
 		let buf = String.create (length+1) in
@@ -233,7 +229,8 @@ doco_id with
 		    | [] -> Printf.eprintf "WARNING: Done unwanted\n"
 		    | h::t -> Semaphore.unlock h)
 	    | Accepted(chanid, is_accepted) ->
-            (match Lockedtable.find_or_empty chan_accepted chanid with
+            let chan = (chanid,client_id) in
+            (match Lockedtable.find_or_empty chan_accepted chan with
              | [] -> Printf.eprintf "WARNING: Accept unwanted\n"
              | (h,br)::t ->
                        br := is_accepted;
@@ -244,7 +241,7 @@ doco_id with
                         end
                        else
                            Mutex.unlock h;
-                       Lockedtable.replace chan_accepted chanid t)
+                       Lockedtable.replace chan_accepted chan t)
          | Ping ->
                  Printf.printf "got Ping from %d.\n%!" client_id
 	    );

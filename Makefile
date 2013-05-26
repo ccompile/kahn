@@ -17,6 +17,9 @@ pr:
 socket-1:
 	$(OCAMLBUILD) run-socket-1.$(TARGET)
 
+socket-2:
+	$(OCAMLBUILD) run-socket-2.$(TARGET)
+
 fft:
 	$(OCAMLBUILD) run-fft.$(TARGET)
 
