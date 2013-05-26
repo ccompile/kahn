@@ -103,13 +103,19 @@ limite donc un minimum la lourdeur du protocole.
 \section{Résultats}
 
 Dans le but de comparer la verbosité des différentes implémentations
-nous avons executés le compteur sur une architecture simple coeur, avec
+nous avons executés le compteur sur une architecture simple coeur
+\footnote{AMD V120-2.2 Ghz}, avec
 les différentes implémentations, ceci durant 10 secondes.
 Les valeurs atteintes sont les suivantes: \\
 Seq : 515724\\
 Threads: 409080\\
 Processus lourds: 5621\\
-Sockets : 23723
+Sockets : 23723\\
+On remarquera que bien sur sur des machines multi-coeurs,
+l'implémentation processus lourds remonte nettement en performance.
+Cependant elle reste anormalement lente. 
+
+
  
 \section{Performances}
 
