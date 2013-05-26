@@ -26,14 +26,12 @@ end
 module E = Example(Net)
 
 let () = 
-	let (lstener,hdler) = Net.global_init
+	let lstener = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then
       begin
         let _ = read_line () in
-        Printf.printf "Running main\n%!";
         E.K.run E.main 
       end;
-    Thread.join hdler;
     Thread.join lstener
 

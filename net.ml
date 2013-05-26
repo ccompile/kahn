@@ -16,7 +16,7 @@ let available =
     [|{ip="127.0.0.1"; port=8030}; {ip="127.0.0.1"; port=8040};
     {ip="127.0.0.1"; port=8050}|]
 let max_waiting_messages = 16
-let delay_before_retry = 1.0
+let delay_before_retry = 0.01
 
 let listen_sock = (Unix.socket PF_INET SOCK_STREAM 0)
 let nbmachines = (Array.length available)
@@ -62,47 +62,7 @@ let rec listen_and_run sock (action : 'a -> file_descr -> unit) =
     (*********Fin**********)
     listen_and_run sock action
 
-(* Attendre les connexions entrantes des autres machines.
- * Ces connexions sont conservées pour transmettre les messages. *)
-let receive_msg_conns () =
-   let machine_idx = !my_machine_id in
-   let register_sock remote_idx sock =
-       mesg_sockets.(remote_idx) <- sock;
-       Semaphore.unlock !not_established_connexions;
-   in
-   let init_sock = Unix.socket PF_INET SOCK_STREAM 0 in
-   setsockopt init_sock SO_REUSEADDR true ;
-
-   Unix.bind init_sock (Unix.ADDR_INET
-      (Unix.inet_addr_of_string "0.0.0.0",available.(machine_idx).port));
-
-   Unix.listen init_sock (Array.length available + 1);
-   listen_and_run init_sock register_sock
    
-let wait_init_end () =
-    Mutex.lock init_complete
-
-(* Crée des connexions avec les autres machines d'index inférieur *)
-let init_msg_conns () =
-    let machine_idx = !my_machine_id in
-    for i = 0 to machine_idx-1 do
-        let socket = Unix.socket PF_INET SOCK_STREAM 0 in
-        setsockopt socket SO_REUSEADDR true ;
-        Unix.setsockopt_optint socket SO_LINGER (None); 
-        Unix.connect socket (Unix.ADDR_INET (Unix.inet_addr_of_string
-        available.(i).ip,available.(i).port));
-        let channel = Unix.out_channel_of_descr socket in
-        Marshal.to_channel channel machine_idx [ Marshal.Closures ];
-        flush channel;
-        mesg_sockets.(i) <- socket;
-        Semaphore.unlock !not_established_connexions;
-    done;
-    let (reader,writer) = Unix.pipe () in
-    local_writer := writer;
-    Semaphore.unlock !not_established_connexions;
-    mesg_sockets.(machine_idx) <- reader
-
-    
 type protocol =
   | Put of int (*chan*) * int (*length*)
   | Accepted of int (*chan*) * bool (* is_accepted *)
@@ -147,13 +107,86 @@ let handle_put chanid msg =
   else
     begin
       (match Lockedtable.find_or_empty waiting_clients chanid with
-        | [] -> Printf.printf "Message queued\n%!"; Lockedtable.push_elem waiting_messages chanid msg
-        | h::t -> Printf.printf "Message sent\n%!"; send_give h chanid msg;
+        | [] -> Lockedtable.push_elem waiting_messages chanid msg
+        | h::t -> send_give h chanid msg;
             Lockedtable.replace waiting_clients chanid t);
       true
     end
         
+   
+let put obj chan () =
+    let mtx = Mutex.create () in
+    let is_accepted = ref false in
+    let marshalled = (Marshal.to_string obj [Marshal.Closures]) in
+    while not !is_accepted do
+        if chan.respo = !my_machine_id then
+          is_accepted := handle_put chan.id marshalled
+        else
+          begin
+            Mutex.lock mtx;
+            Lockedtable.push_elem chan_accepted chan.id (mtx,is_accepted);
+            send_put chan.respo chan.id marshalled;
+            Thread.yield ();
+            (* wait for Accepted message *)
+            Mutex.lock mtx;
+            Mutex.unlock mtx
+          end;
+        if not !is_accepted then
+          begin
+            Thread.yield ();
+            let _ = Thread.select [] [] [] delay_before_retry in
+            ()
+          end
+    done
 
+let get (chan : 'a channel) () =
+    let mtx = Mutex.create () in
+    let marshalled_val = ref "" in
+    Mutex.lock mtx;
+    Lockedtable.push_elem waiting_processes chan.id (mtx,marshalled_val);
+    send_get chan.respo chan.id;
+    Mutex.lock mtx;
+    Mutex.unlock mtx;
+    (Marshal.from_string !marshalled_val 0 : 'a)
+
+let new_channel () =
+    incr next_fresh_channel;
+    let c = {id=(!next_fresh_channel); respo= (!my_machine_id)} in
+    (c,c)
+
+let run e = e ()
+
+let bind e f () =
+    f (e ()) ()
+
+let return a () = a
+
+let doco lst () =
+    incr next_doco_id;
+    let doco_id = !next_doco_id in
+    let sem = Semaphore.create 0 in
+    Lockedtable.replace doco_semaphores doco_id [sem]; 
+    let send_process_to_a_random_guy f =
+        Semaphore.lock sem;
+	    let guy = (Random.int nbmachines) in
+        if guy = !my_machine_id then
+            begin
+                let _ = Thread.create
+		        (fun () ->
+			    f ();
+			    Semaphore.unlock sem) () in ()
+            end
+        else
+            begin
+                let marshalled = Marshal.to_string f [Marshal.Closures] in
+                send_message guy (Exec(doco_id, String.length marshalled))
+	            (Some marshalled)
+            end
+    in
+    List.iter send_process_to_a_random_guy lst;
+    Semaphore.wait_empty sem
+
+(* Boucle de gestion des messages pour un pair donné *)
 let relay_from client_id =
     try
 	let sock = mesg_sockets.(client_id) in
@@ -164,21 +197,17 @@ let relay_from client_id =
 		| Put(chanid,length) ->
             let buf = String.create (length+1) in
             really_input channel buf 0 length;
-            Printf.printf "Got Put : chan %d, contents : %s\n%!"
-            chanid buf;
             let is_accepted = handle_put chanid buf in
             send_message client_id (Accepted(chanid,is_accepted)) None
 	    | Get(chanid) ->
-        Printf.printf "Got Get : chan %d\n%!" chanid;
-		(match Lockedtable.find_or_empty waiting_messages chanid with
+		   (match Lockedtable.find_or_empty waiting_messages chanid with
 		    | [] -> Lockedtable.push_elem waiting_clients chanid client_id
 		    | h::t -> send_give client_id chanid h;
 			    Lockedtable.replace waiting_messages chanid t)
 		| Give(chanid,length) ->
-		let buf = String.create (length+1) in
-		really_input channel buf 0 length;
-        Printf.printf "Got Give : chan %d, contents : %s\n%!" chanid buf;
-		(match Lockedtable.find_or_empty waiting_processes chanid with
+            let buf = String.create (length+1) in
+            really_input channel buf 0 length;
+            (match Lockedtable.find_or_empty waiting_processes chanid with
             | [] -> Printf.eprintf "WARNING: Ignored Give\n%!"(* message ignoré *)
 		    | (mtx,v)::t -> v := buf;
                     Lockedtable.replace waiting_processes chanid t;
@@ -186,7 +215,6 @@ let relay_from client_id =
 		| Exec(doco_id, length) ->
 		let buf = String.create (length+1) in
 		really_input channel buf 0 length;
-        Printf.printf "Got Exec : doco_id %d\n%!" doco_id;
 		let fn = (Marshal.from_string buf 0 : unit process) in
 		let _ = Thread.create
 		    (fun () ->
@@ -213,113 +241,56 @@ doco_id with
                        Lockedtable.replace chan_accepted chanid t)
          | Ping ->
                  Printf.printf "got Ping from %d.\n%!" client_id
-	    )
+	    );
+        Thread.yield ()
 	done
     with End_of_file ->
 	Printf.eprintf "Pair %d has disconnected.\n%!" client_id;
 	Thread.exit ()
 
-(* Relay messages to clients *)
-let start_relay () =
-    let threads = Array.init nbmachines
-    (Thread.create relay_from) in
-    for i = 0 to nbmachines-1 do
-        Thread.join threads.(i)
-    done
-    
-let put obj chan () =
-    Printf.printf "Put called\n%!";
-    let mtx = Mutex.create () in
-    let is_accepted = ref false in
-    let marshalled = (Marshal.to_string obj [Marshal.Closures]) in
-    while not !is_accepted do
-        if chan.respo = !my_machine_id then
-          begin
-              is_accepted := handle_put chan.id marshalled;
-              if !is_accepted then
-                Printf.printf "My put has been accepted.\n%!"
-              else Printf.printf "My put has been refused.\n%!"
-          end
-        else
-          begin
-            send_put chan.respo chan.id marshalled;
-            (* wait for Accepted message *)
-            Mutex.lock mtx;
-            Lockedtable.push_elem chan_accepted chan.id (mtx,is_accepted);
-            Printf.printf "waiting for the accept mutex to unlock\n%!";
-            Mutex.lock mtx;
-            Printf.printf "ok, unlocked.\n%!";
-            Mutex.unlock mtx
-          end;
-        if not !is_accepted then
-            let _ = Unix.select [] [] [] delay_before_retry in ()
-    done
 
-let get (chan : 'a channel) () =
-    Printf.printf "Get called\n%!";
-    let mtx = Mutex.create () in
-    let marshalled_val = ref "" in
-    Mutex.lock mtx;
-    Lockedtable.push_elem waiting_processes chan.id (mtx,marshalled_val);
-    send_get chan.respo chan.id;
-    Printf.printf "waiting for the give mutex to unlock\n%!";
-    Mutex.lock mtx;
-    Mutex.unlock mtx;
-    Printf.printf "ok, unlocked.\n%!";
-    (Marshal.from_string !marshalled_val 0 : 'a)
+let register_sock remote_idx sock =
+   mesg_sockets.(remote_idx) <- sock;
+   Semaphore.unlock !not_established_connexions;
+   ignore (Thread.create relay_from remote_idx)
 
-let new_channel () =
-    Printf.printf "New_channel called\n";
-    incr next_fresh_channel;
-    let c = {id=(!next_fresh_channel); respo= (!my_machine_id)} in
-    (c,c)
+(* Attendre les connexions entrantes des autres machines.
+ * Ces connexions sont conservées pour transmettre les messages. *)
+let receive_msg_conns () =
+   let machine_idx = !my_machine_id in
+   let init_sock = Unix.socket PF_INET SOCK_STREAM 0 in
+   setsockopt init_sock SO_REUSEADDR true ;
+   Unix.bind init_sock (Unix.ADDR_INET
+      (Unix.inet_addr_of_string "0.0.0.0",available.(machine_idx).port));
+   Unix.listen init_sock (Array.length available + 1);
+   listen_and_run init_sock register_sock
+   
+(* Crée des connexions avec les autres machines d'index inférieur *)
+let init_msg_conns () =
+    let machine_idx = !my_machine_id in
+    for i = 0 to machine_idx-1 do
+        let socket = Unix.socket PF_INET SOCK_STREAM 0 in
+        setsockopt socket SO_REUSEADDR true ;
+        Unix.setsockopt_optint socket SO_LINGER (None); 
+        Unix.connect socket (Unix.ADDR_INET (Unix.inet_addr_of_string
+        available.(i).ip,available.(i).port));
+        let channel = Unix.out_channel_of_descr socket in
+        Marshal.to_channel channel machine_idx [ Marshal.Closures ];
+        flush channel;
+        register_sock i socket
+    done;
+    let (reader,writer) = Unix.pipe () in
+    local_writer := writer;
+    register_sock machine_idx reader
 
 let global_init machine_id =
+    Random.self_init ();
     my_machine_id := machine_id;
     let listener = Thread.create receive_msg_conns () in
     Printf.printf "Please press ENTER to initiate the connection : %!";
     let _ = read_line () in
     init_msg_conns ();
-    let relay = Thread.create start_relay () in
     Semaphore.wait_empty !not_established_connexions;
-    send_message 0 Ping None;
-    send_message 1 Ping None;
-    send_message 2 Ping None;
-    (listener,relay)
+    listener
 
-let run e = e ()
-
-let bind e f () =
-    f (e ()) ()
-
-let return a () = a
-
-let doco lst () =
-    Printf.printf "Doco called\n%!";
-    incr next_doco_id;
-    let doco_id = !next_doco_id in
-    let sem = Semaphore.create 0 in
-    Lockedtable.replace doco_semaphores doco_id [sem]; 
-    let send_process_to_a_random_guy f =
-        Semaphore.lock sem;
-	    let guy = (Random.int nbmachines) in
-        Printf.printf "Send a process to %d.\n%!" guy;
-        if guy = !my_machine_id then
-            begin
-                let _ = Thread.create
-		        (fun () ->
-			    f ();
-			    Semaphore.unlock sem) () in ()
-            end
-        else
-            begin
-                let marshalled = Marshal.to_string f [Marshal.Closures] in
-                send_message guy (Exec(doco_id, String.length marshalled))
-	            (Some marshalled)
-            end
-    in
-    List.iter send_process_to_a_random_guy lst;
-    Printf.printf "Waiting for the semaphore\n%!";
-    Semaphore.wait_empty sem;
-    Printf.printf "Semaphore is now empty, exitting doco\n%!"
 
