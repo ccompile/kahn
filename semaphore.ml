@@ -3,9 +3,12 @@ type t = {count:int ref; mutex:Mutex.t; empty:Mutex.t}
 
 exception SemaphoreUnlockException
 
-let create limit =
-    {count= ref 0; mutex=Mutex.create ();
-      empty = Mutex.create ()}
+let create count =
+    let empty = Mutex.create () in
+    if count <> 0 then
+        Mutex.lock empty;
+    {count= ref count; mutex=Mutex.create ();
+      empty = empty}
     
 let lock sem =
     Mutex.lock sem.mutex;
@@ -28,7 +31,7 @@ let unlock sem =
 	   decr sem.count;
 	   if oldval = 1 then
 		Mutex.unlock sem.empty;
-    	   Mutex.unlock sem.mutex
+    	Mutex.unlock sem.mutex
 	end
 
 let wait_empty sem =

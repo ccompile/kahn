@@ -17,7 +17,7 @@ module Example (K : Interface.S) = struct
     in
     loop ()
 
-  let main () : unit K.process =
+  let main : unit K.process =
     (delay K.new_channel ()) >>=
     (fun (q_in, q_out) -> K.doco [ integers q_out ; output q_in ; ])
 
@@ -25,12 +25,15 @@ end
 
 module E = Example(Net)
 
-let () = Printf.printf "Bonjour\n%!"
 let () = 
-	Printf.printf "MAIN\n%!";
-	let (_,_) = Net.global_init
+	let (lstener,hdler) = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then
-	    E.K.run (E.main ()) 
+      begin
+        let _ = read_line () in
+        Printf.printf "Running main\n%!";
+        E.K.run E.main 
+      end;
+    Thread.join hdler;
+    Thread.join lstener
 
-let () = Printf.printf "Bonjour\n%!"
