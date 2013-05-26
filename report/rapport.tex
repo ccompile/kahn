@@ -1,0 +1,150 @@
+\documentclass[a4paper]{article}
+
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{fullpage}
+\usepackage{pgf}
+\usepackage{tikz}
+\usepackage{minted}
+\usetikzlibrary{arrows,automata}
+\usetikzlibrary{positioning}
+
+\begin{document}
+
+\title{Réseaux de Kahn : différents choix pour différentes
+implémentations }
+\author{Antonin Delpeuch et Thomas Bourgeat}
+\date{\today}
+
+\maketitle
+
+\section{Séquentielle}
+Dans cette implémentation, nous avons utilisé un type en quelque sorte « glaçon ». Ceci
+nous permet de différencier un calcul qui est une valeur d'un calcul
+non terminé.
+
+\begin{minted}{ocaml}
+type 'a process =
+  | Val of 'a
+  | Proc of (unit -> 'a process)
+\end{minted}
+
+Ensuite durant un \texttt{doco}, on fait en sorte d'executer étape par étape les
+processus dans le but d'avoir la liste des processus qui sont des
+valeurs. Les évaluations se font circulairement, dans le but d'effectuer
+une distribution juste : un processus dont on vient de faire une
+étape va faire la queue pour qu'on lui fasse faire une deuxième étape.
+ 
+
+\section{Processus lourds}
+
+Les canaux sont des pipes. On utilise le fait que les descripteurs de fichiers
+sont hérités par le fils quand on fait un \texttt{fork} : on peut donc transmettre
+directement des descripteurs de fichiers comme des valeurs.
+
+Le reste de l'implémentation est standard, vu le type des processus : \texttt{'a process = unit -> 'a}.
+
+\section{Sockets (version 1)}
+
+\subsection{Utilisation}
+Pour utiliser cette implémentation il va falloir lancer 
+l'application sur plusieurs machines : une machine initialisatrice, et
+des machines disponibles pour executer des processus. Toutes ces machines seront
+interconnectées avec une architecture décentralisée, il faut donc
+qu'elles connaissent toutes la liste des ip des machines qui vont servir
+au calcul.
+Pour lancer les clients on utilise \texttt{./example.native c
+fichiermachine p} qui
+permet de lancer le client en attente de code à executer sur le port p.
+Pour lancer l'application initiatrice, on execute \texttt{./example.native s
+fichiermachine}
+Pour créer le fichier fichiermachine, on pourra utiliser l'application
+fournie \texttt{./example.native g nbrmachines fichiermachine} qui demandera à
+l'utilisateur le nom des machines ainsi que les ports utilisés pour la
+communication de code.
+
+\subsection{Architecture globale}
+La structure choisie est la suivante : au départ il y a disymétrie: une
+machine est initialisatrice, et les autres sont des clients en attente de
+calcul. Mais quand une machine commence à executer du calcul elle peut
+alors diffuser à n'importe quelle autre machine du calcul. Le doco est la seule étape de
+parallelisation.
+
+Il y a donc deux types de communications : les communications de code, et
+les communication de données.
+
+
+Pour les channels, étant donné qu'une machine A peut créer un channel de
+communication qui servira entre les machines B et C, nous avons décidé
+de faire une architecture simple : A est un serveur pour ce channel.
+Quand B veut parler à C, il parle en fait à A, et A retransmet à C.
+Nous avons décidé de faire un \texttt{put} bloquant dans cette implémentation.
+
+
+Le protocole de communication sur le cannal choisit est le suivant : 
+Si B communique avec C dans un channel crée par A ; du point de vue de A, deux cas sont
+possibles. Soit un \texttt{get} arrive en premier: 
+\begin{itemize}
+\item C fait un get.
+\item On attend un put de B.
+\item C confirme que tout s'est bien passé à B 
+\end{itemize}
+
+Ou alors un \texttt{put} arrive en premier :
+
+\begin{itemize}
+\item B fait un put.
+\item On attends un get de C
+\item C confirme que tout s'est bien passé, et l'étape s'est bien
+déroulé.
+\end{itemize}
+
+Bien entendu ce protocol naif empeche le \texttt{put / put / get / get}, mais il est
+possible de faire un put bloquant comme dans ce dernier schéma
+uniquement lorsqu'un buffer est plein (qui donc est ici de taille 1). Cependant nous avons décidé de ne
+pas nous attarder sur ces détails et plutot d'essayer divers autres
+stratégies de communication.
+
+D'autre part, nous avons choisi d'utiliser le modèle suivant :\\
+Connection-Lecture/Écriture-Déconnection \\
+De ce fait, on effectue un grand nombre de connections. Cependant le
+serveur du channel reste toujours en écoute, sur la meme socket. Ceci
+limite donc un minimum la lourdeur du protocole.
+
+\section{Sockets (version 2)}
+
+On dispose de $n$ machines, appelées \emph{pairs} dans la suite.
+À l'initialisation, chaque pair elles établit une connexion vers ses pairs.
+Ces connexions restent actives pendant toute la durée du calcul et sont utilisées aussi bien pour envoyer des instructions
+que des messages transitant sur des canaux.
+
+Les canaux sont donc abstraits (c'est à dire qu'ils ne correspondent à aucune connexion physique).
+
+Créer un cannal revient à hêler un pair et lui ordonner de se porter volontaire pour relayer les
+messages de ce nouveau cannal. Concrètement, un cannal est représenté par l'identifiant d'un pair et
+un numéro unique (à pair près) pour le cannal en question.
+
+Pour émettre ou recevoir des messages sur un cannal, il faut contacter le pair qui gère ce cannal et
+lui décrire l'opération voulue. Les \texttt{get} sont bloquants jusqu'à ce qu'il y ait un message disponible
+sur le cannal. Les \texttt{put} ne sont pas bloquants à moins que la limite de longueur de la file d'attente
+des messages à distribuer (chez le pair qui gère le cannal) soit atteinte : dans ce cas, le gérant refuse
+poliment le \texttt{put} et l'aspirant émetteur va réitérer sans relâche sa demande jusqu'à satisfaction.
+
+On a donc développé un petit protocole pour faire transiter les informations via les connexions établies.
+Les messages ont des entêtes et sont éventuellement suivies d'un corps, dont la longueur est spécifiée dans l'entête.
+
+\section{Tests}
+
+Nous avons développé un test qui calcule en parallèle la transformée de Fourier d'un polynôme complexe présenté sur des canaux
+d'entrée.
+
+Une démonstration à couper le souffle sera présentée le jour de la soutenance.
+
+\section{Performances}
+
+
+
+\end{document}
+
+
