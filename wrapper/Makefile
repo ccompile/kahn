@@ -1,8 +1,8 @@
 OCAMLC=ocamlc -thread unix.cma
-OCAMLOPT=ocamlopt -thread unix.cmx
+OCAMLOPT=ocamlopt -g -thread unix.cmx
 
-fft:vlcwrapper.cmx vlcwrapper.cmxa th.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx
-	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx fft.cmx th.cmx -o run.native -cclib libvlcwrapper.a -cclib -lvlc -cclib -lvlccore
+fft:vlcwrapper.cmx vlcwrapper.cmxa th.cmx seq.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx
+	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx fft.cmx th.cmx seq.cmx run-fft.cmx -o run.native -cclib libvlcwrapper.a -cclib -lvlc -cclib -lvlccore
 
 test:vlcwrapper.cmxa
 	ocamlopt test_vlc.ml -o test.native -cclib libvlcwrapper.a -cclib -lvlc -cclib -lvlccore 

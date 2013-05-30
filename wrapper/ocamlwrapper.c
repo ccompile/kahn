@@ -28,8 +28,6 @@ struct vlc_context
     unsigned int mFrequency;
     unsigned int mFramesOverlap;
 
-    value mUserBuffer;
-
     int mChannels;
 
     pthread_mutex_t* mLock;
@@ -83,7 +81,6 @@ caml_init_context(value uri, value chunkSize)
     ctx->mLock = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(ctx->mLock, NULL);
 
-    ctx->mUserBuffer = caml_alloc(ctx->mChunkSize, 0);
 
     libvlc_media_player_set_media (ctx->mMp, ctx->mMedia);
     libvlc_media_player_play(ctx->mMp);
@@ -93,6 +90,8 @@ caml_init_context(value uri, value chunkSize)
 
 void useBuffer(vlc_context* ctx)
 {
+    CAMLparam0();
+    static value * mUserBuffer = NULL;
     static value * use_callback = NULL;
     if (use_callback == NULL)
     {
@@ -100,10 +99,16 @@ void useBuffer(vlc_context* ctx)
     }
     if(use_callback != NULL)
     {
+        if(mUserBuffer == NULL)
+        {
+            mUserBuffer = malloc(sizeof(value));
+            *mUserBuffer = caml_alloc(ctx->mChunkSize, Abstract_tag);
+        }
         int i;
         for(i = 0; i < ctx->mChunkSize; i++)
-            Store_field(ctx->mUserBuffer, i, Val_int(ctx->mBuffer[i]));
-        caml_callback(*use_callback, ctx->mUserBuffer);
+            Store_field(*mUserBuffer, i, Val_int(ctx->mBuffer[i]));
+        if(use_callback != NULL)
+            caml_callback(*use_callback, *mUserBuffer);
     }
     else
         printf("WARNING: undefined callback\n");
