@@ -10,6 +10,7 @@ let rec create_n_channels = function
 
 
 let ic,oc = create_n_channels n
+let id,od = create_n_channels n
 
 let reading_thread () =
     let rec put_to_chan idx = function
@@ -25,7 +26,7 @@ let reading_thread () =
 
 let () =
     let _ = Thread.create reading_thread () in
-    E.K.run (E.main ic n)
+    E.K.run (E.K.doco [E.main ic n; Spectrogram.Printer.printer id])
 (*	let lstener = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then
