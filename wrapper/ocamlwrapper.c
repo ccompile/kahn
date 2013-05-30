@@ -47,7 +47,7 @@ void useBuffer(vlc_context* ctx);
 
 
 CAMLprim value
-caml_init_context(value uri)
+caml_init_context(value uri, value chunkSize)
 {
     vlc_context* ctx = malloc(sizeof(vlc_context));
     ctx->mPlaying = 0;
@@ -77,7 +77,7 @@ caml_init_context(value uri)
     ctx->mPlaying = 1;
     ctx->mBufferSize = 0;
     ctx->mChannels = 1;
-    ctx->mChunkSize = DEFAULT_CHUNK_SIZE;
+    ctx->mChunkSize = Int_val(chunkSize);
     ctx->mBuffer = malloc(sizeof(int16_t)*2*ctx->mChunkSize);
     ctx->mFramesOverlap = 0.5 * ctx->mChunkSize;
     ctx->mLock = malloc(sizeof(pthread_mutex_t));
