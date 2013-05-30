@@ -1,6 +1,6 @@
 module E = Fft.Fft(Th)
 
-let n = 16
+let n = 32
 
 let rec create_n_channels = function
     | 0 -> ([],[])
@@ -21,6 +21,7 @@ let reading_thread () =
               put_to_chan (idx+1) t
     in
     put_to_chan 0 oc
+
 
 let () =
     let _ = Thread.create reading_thread () in

@@ -29,22 +29,24 @@ module Fft :
       val duplicate :
         'a K.in_port -> 'a K.in_port * 'a K.in_port * 'b K.process
       val create_n_channels : int -> 'a K.in_port list * 'a K.out_port list
+      val repeat : unit K.process -> 'a K.process
       val duplicate_n_times :
-        'a K.in_port -> int -> 'a K.in_port list * unit K.process
+        'a K.in_port -> int -> 'a K.in_port list * 'b K.process
       val kth_elem : int -> 'a list -> 'a
       val combine_results :
         Complex.t K.in_port list ->
         Complex.t K.in_port list ->
-        Complex.t K.out_port list -> Complex.t K.in_port -> unit K.process
+        Complex.t K.out_port list -> Complex.t K.in_port -> 'a K.process list
       val create_fft :
         int ->
         Complex.t K.in_port list ->
-        Complex.t K.out_port list -> Complex.t K.in_port -> unit K.process
+        Complex.t K.out_port list -> Complex.t K.in_port -> 'a K.process list
       val pi : float
       val ei_k_n : int -> int -> Complex.t
       val send_dummy_inputs :
-        int -> Complex.t K.out_port list -> unit K.process
+        int -> Complex.t K.out_port list -> 'a K.process
       val print_complex : Complex.t -> unit
-      val output_module : Complex.t K.in_port list -> unit K.process
+      val output_module : Complex.t K.in_port list -> 'a K.process
+      val butterfly : 'a list -> 'a list
       val main : Complex.t K.in_port list -> int -> unit K.process
     end

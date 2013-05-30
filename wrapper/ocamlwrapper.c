@@ -4,10 +4,6 @@
 #include <pthread.h>
 #include <vlc/vlc.h>
 #include <string.h>
-#include <caml/mlvalues.h>
-#include <caml/memory.h>
-#include <caml/callback.h>
-#include <caml/alloc.h>
 
 #define DEFAULT_CHUNK_SIZE 2048
 
@@ -44,15 +40,15 @@ void flushBuffer(vlc_context* ctx);
 void useBuffer(vlc_context* ctx);
 
 
-CAMLprim value
-caml_init_context(value uri, value chunkSize)
+vlc_context*
+caml_init_context(char *uri, int chunkSize)
 {
     vlc_context* ctx = malloc(sizeof(vlc_context));
     ctx->mPlaying = 0;
     
     char smemOptions[256];
 
-    char* url = String_val(uri);
+    char* url = uri;
 
      sprintf(smemOptions, "#transcode{acodec=s16l}:duplicate{dst=display,dst=smem"
          "{audio-postrender-callback=%lld,audio-prerender-callback=%lld,audio-data=%lld}}",
@@ -75,7 +71,7 @@ caml_init_context(value uri, value chunkSize)
     ctx->mPlaying = 1;
     ctx->mBufferSize = 0;
     ctx->mChannels = 1;
-    ctx->mChunkSize = Int_val(chunkSize);
+    ctx->mChunkSize = chunkSize;
     ctx->mBuffer = malloc(sizeof(int16_t)*2*ctx->mChunkSize);
     ctx->mFramesOverlap = 0.5 * ctx->mChunkSize;
     ctx->mLock = malloc(sizeof(pthread_mutex_t));
@@ -85,33 +81,31 @@ caml_init_context(value uri, value chunkSize)
     libvlc_media_player_set_media (ctx->mMp, ctx->mMedia);
     libvlc_media_player_play(ctx->mMp);
 
-    return (value)ctx;
+    return ctx;
 }
+
+int main(int argc, char **argv)
+{
+    if(argc < 2)
+        printf("Usage: %s filename\n", argv[0]);
+    else
+    {
+        vlc_context* ctx;
+       
+        ctx = caml_init_context(argv[1], 32);
+
+        getchar();
+    }
+
+    return 0;
+}
+
 
 void useBuffer(vlc_context* ctx)
 {
-    CAMLparam0();
-    static value * mUserBuffer = NULL;
-    static value * use_callback = NULL;
-    if (use_callback == NULL)
-    {
-        use_callback = caml_named_value("vlc_use_buffer");
-    }
-    if(use_callback != NULL)
-    {
-        if(mUserBuffer == NULL)
-        {
-            mUserBuffer = malloc(sizeof(value));
-            *mUserBuffer = caml_alloc(ctx->mChunkSize, Abstract_tag);
-        }
-        int i;
-        for(i = 0; i < ctx->mChunkSize; i++)
-            Store_field(*mUserBuffer, i, Val_int(ctx->mBuffer[i]));
-        if(use_callback != NULL)
-            caml_callback(*use_callback, *mUserBuffer);
-    }
-    else
-        printf("WARNING: undefined callback\n");
+    int i;
+    for(i = 0; i < ctx->mChunkSize; i++)
+        printf("%d\n", ctx->mBuffer[i]);
 }
 
 // Get ready to render the stream to the buffer
