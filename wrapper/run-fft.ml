@@ -1,11 +1,6 @@
-module E = Fft.Fft(Seq)
+module E = Fft.Fft(Th)
 
-open Vlcwrapper
-
-let n = 32
-let start_vlc url cb =
-    Callback.register "vlc_use_buffer" cb;
-    vlc_init_context url 16192
+let n = 16
 
 let rec create_n_channels = function
     | 0 -> ([],[])
@@ -16,26 +11,20 @@ let rec create_n_channels = function
 
 let ic,oc = create_n_channels n
 
-let my_callback values =
-(*    Printf.printf "I'm in the callback !\n%!"; *)
+let reading_thread () =
     let rec put_to_chan idx = function
-      | [] -> ()
+      | [] -> put_to_chan 0 oc
       | c::t -> 
-              (* Printf.printf "Trying to access values %d\n%!" idx; *)
-              let v = values.(idx) in
-              (* Printf.printf "Accessed !\n%!"; *)
+              let v = read_int () in
               E.K.run (E.K.put {Complex.re=(float_of_int v);
               Complex.im=0.} c);
               put_to_chan (idx+1) t
     in
-(*    Printf.printf "Trying to call put_to_chan\n%!"; *)
     put_to_chan 0 oc
 
-let e = start_vlc "alsa://" my_callback
-
 let () =
-    E.K.run (E.main ic n);
-    let _ = read_line () in ()
+    let _ = Thread.create reading_thread () in
+    E.K.run (E.main ic n)
 (*	let lstener = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then
