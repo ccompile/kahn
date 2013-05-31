@@ -1,8 +1,8 @@
 OCAMLC=ocamlc -thread unix.cma
 OCAMLOPT=ocamlopt -g -thread unix.cmx
 
-fft:th.cmx seq.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx spectrogram.cmx wrapper
-	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx fft.cmx th.cmx seq.cmx spectrogram.cmx run-fft.cmx -o run.native
+fft:spectrogram.cmx th.cmx seq.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx spectrogram.cmx wrapper
+	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx graphics.cmxa spectrogram.cmx fft.cmx th.cmx seq.cmx run-fft.cmx -o run.native
 
 wrapper:
 	gcc ocamlwrapper.c -l vlc -l vlccore -o wrapper
@@ -230,16 +230,16 @@ serveur.cmi:serveur.mli
 serveur.mli:serveur.ml
 	$(OCAMLC) -i $< > $@
 
-spectrogram.cmo:spectrogram.ml
+spectrogram.cmo:spectrogram.ml interface.cmi kahn.cmi
 	$(OCAMLC) -c $<
 
-spectrogram.cmx:spectrogram.ml spectrogram.cmi
+spectrogram.cmx:spectrogram.ml spectrogram.cmi interface.cmi kahn.cmi
 	$(OCAMLOPT) -c $<
 
-spectrogram.cmi:spectrogram.mli
+spectrogram.cmi:spectrogram.mli interface.cmi kahn.cmi
 	$(OCAMLC) -c $<
 
-spectrogram.mli:spectrogram.ml
+spectrogram.mli:spectrogram.ml interface.cmi kahn.cmi
 	$(OCAMLC) -i $< > $@
 
 th.cmo:th.ml
