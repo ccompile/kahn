@@ -1,8 +1,8 @@
 OCAMLC=ocamlc -thread unix.cma
 OCAMLOPT=ocamlopt -g -thread unix.cmx
 
-fft:spectrogram.cmx th.cmx seq.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx spectrogram.cmx wrapper
-	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx graphics.cmxa spectrogram.cmx fft.cmx th.cmx seq.cmx run-fft.cmx -o run.native
+fft:net.cmx spectrogram.cmx pr.cmx th.cmx seq.cmx run-fft.cmx fft.cmx fft.cmi kahn.cmx kahn.cmi lockedtable.cmx semaphore.cmx wrapper
+	ocamlopt -thread unix.cmxa threads.cmxa lockedtable.cmx semaphore.cmx kahn.cmx graphics.cmxa spectrogram.cmx fft.cmx net.cmx pr.cmx th.cmx seq.cmx run-fft.cmx -o run.native
 
 wrapper:
 	gcc ocamlwrapper.c -l vlc -l vlccore -o wrapper
@@ -80,10 +80,10 @@ kahn.cmi:kahn.mli
 kahn.mli:kahn.ml interface.cmi lockedtable.cmi semaphore.cmi
 	$(OCAMLC) -i $< > $@
 
-lockedtable.cmo:lockedtable.ml 
+lockedtable.cmo:lockedtable.ml lockedtable.cmi
 	$(OCAMLC) -c $<
 
-lockedtable.cmx:lockedtable.ml 
+lockedtable.cmx:lockedtable.ml lockedtable.cmi 
 	$(OCAMLOPT) -c $< 
 
 lockedtable.cmi:lockedtable.mli
@@ -95,7 +95,7 @@ lockedtable.mli:lockedtable.ml
 net.cmo:net.ml semaphore.cmo lockedtable.cmo
 	$(OCAMLC) -c $<
 
-net.cmx:net.ml semaphore.cmx lockedtable.cmx
+net.cmx:net.ml semaphore.cmx lockedtable.cmx net.cmi
 	$(OCAMLOPT) -c $<
 
 net.cmi:net.mli
@@ -107,7 +107,7 @@ net.mli:net.ml
 pr.cmo:pr.ml 
 	$(OCAMLC) -c $<
 
-pr.cmx:pr.ml 
+pr.cmx:pr.ml pr.cmi
 	$(OCAMLOPT) -c $<
 
 pr.cmi:pr.mli
@@ -194,10 +194,10 @@ run-th.cmi:run-th.mli
 run-th.mli:run-th.ml
 	$(OCAMLC) -i $< > $@
 
-semaphore.cmo:semaphore.ml semaphore.ml
+semaphore.cmo:semaphore.ml semaphore.ml semaphore.cmi
 	$(OCAMLC) -c $<
 
-semaphore.cmx:semaphore.ml semaphore.ml
+semaphore.cmx:semaphore.ml semaphore.ml semaphore.cmi
 	$(OCAMLOPT) -c $<
 
 semaphore.cmi:semaphore.mli

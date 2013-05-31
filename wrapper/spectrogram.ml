@@ -9,9 +9,11 @@ module Printer(K: Interface.S)=struct
   let b = 0.
 
 let print_spectr t spect=
-  let spec= Array.make_matrix (Array.length spect) 1 (rgb 0 0 0) in  
-  for i=0 to Array.length spect -1 do
-    spec.(i).(0)<- (rgb (spect.(i)) (spect.(i)) (spect.(i))) ; 
+  let spec= Array.make_matrix (2*(Array.length spect)) 1 (rgb 0 0 0) in  
+  for i=0 to (Array.length spect) -1 do
+    let v = spect.(i) / 4 in
+    spec.(2*i).(0)<- (rgb v v v) ; 
+    spec.(2*i+1).(0)<- (rgb v v v) ; 
     (*TODO : Adjust linearization*)
   done;
   let im= make_image spec in
@@ -37,6 +39,7 @@ let swip_and_print spect x1 y1 x2 y2 =
       |t::q-> (K.get t) >>= ( fun v-> accumulate q (v::lwork))
       | [] -> let lfinal= List.map Complex.norm lwork in
               let lfinal = normalisation lfinal in 
+               swip_and_print (Array.of_list lfinal) 1 0 500 (List.length l_chan);
                swip_and_print (Array.of_list lfinal) 1 0 500 (List.length l_chan);
                accumulate l_chan []
     in

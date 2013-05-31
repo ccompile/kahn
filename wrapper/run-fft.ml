@@ -1,8 +1,8 @@
-module E = Fft.Fft(Th)
+module E = Fft.Fft(Net)
 
 module P = Spectrogram.Printer(E.K)
 
-let n = 64
+let n = 8
 
 let rec create_n_channels = function
     | 0 -> ([],[])
@@ -11,8 +11,10 @@ let rec create_n_channels = function
            (i::a,o::b)
 
 
-let ic,oc = create_n_channels n
-let id,od = create_n_channels n
+let ic,oc = (create_n_channels n : (Complex.t E.K.in_port list * Complex.t
+E.K.out_port list)) 
+let id,od = (create_n_channels n : (Complex.t E.K.in_port list * Complex.t
+E.K.out_port list))
 
 let reading_thread () =
     let rec put_to_chan idx = function
@@ -27,14 +29,14 @@ let reading_thread () =
 
 
 let () =
-    let _ = Thread.create reading_thread () in
-    E.K.run (E.K.doco [E.main ic od n; P.printer id])
-(*	let lstener = Net.global_init
+	let lstener = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then
       begin
-        let _ = read_line () in
-        let _ = E.K.run (E.main 32) in () 
-      end;
+        Unix.sleep 3;
+        let _ = Thread.create reading_thread () in
+        let _ = E.K.run (E.K.doco [E.main ic od n; E.output_module
+        (*P.printer*) id])
+        in ()
+    end;
     Thread.join lstener
-*)

@@ -20,32 +20,33 @@ module Fft :
           val delay : ('a -> 'b) -> 'a -> 'b K.process
           val par_map : ('a -> 'b) -> 'a list -> 'b list
         end
+      val threshold : int
+      val pi : float
+      val ei_k_n : int -> int -> Complex.t
+      val repeat : unit K.process -> 'a K.process
+      val find_p : int -> int -> int
+      val iterative_fft : Complex.t array -> unit
+      val iterative_module :
+        Complex.t K.in_port list -> Complex.t K.out_port list -> 'a K.process
+      val print_complex : Complex.t -> unit
       val create_module :
         Complex.t K.in_port ->
         Complex.t K.in_port ->
         Complex.t K.out_port ->
-        Complex.t K.out_port -> Complex.t K.in_port -> 'a K.process
+        Complex.t K.out_port -> Complex.t -> 'a K.process
       val split_in_two : 'a list -> 'a list * 'a list
-      val duplicate :
-        'a K.in_port -> 'a K.in_port * 'a K.in_port * 'b K.process
       val create_n_channels : int -> 'a K.in_port list * 'a K.out_port list
-      val repeat : unit K.process -> 'a K.process
-      val duplicate_n_times :
-        'a K.in_port -> int -> 'a K.in_port list * 'b K.process
       val kth_elem : int -> 'a list -> 'a
       val combine_results :
         Complex.t K.in_port list ->
         Complex.t K.in_port list ->
-        Complex.t K.out_port list -> Complex.t K.in_port -> 'a K.process list
+        Complex.t K.out_port list -> 'a K.process list
       val create_fft :
         int ->
         Complex.t K.in_port list ->
-        Complex.t K.out_port list -> Complex.t K.in_port -> 'a K.process list
-      val pi : float
-      val ei_k_n : int -> int -> Complex.t
+        Complex.t K.out_port list -> 'a K.process list
       val send_dummy_inputs :
         int -> Complex.t K.out_port list -> 'a K.process
-      val print_complex : Complex.t -> unit
       val output_module : Complex.t K.in_port list -> 'a K.process
       val butterfly : 'a list -> 'a list
       val main :

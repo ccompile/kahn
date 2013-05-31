@@ -290,8 +290,9 @@ let global_init machine_id =
     Random.self_init ();
     my_machine_id := machine_id;
     let listener = Thread.create receive_msg_conns () in
-    Printf.printf "Please press ENTER to initiate the connection : %!";
-    let _ = read_line () in
+   (* Printf.printf "Please press ENTER to initiate the connection : %!";
+    let _ = read_line () in *)
+    Unix.sleep 5;
     init_msg_conns ();
     Semaphore.wait_empty !not_established_connexions;
     listener
