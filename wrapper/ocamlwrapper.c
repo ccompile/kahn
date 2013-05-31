@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 void useBuffer(vlc_context* ctx)
 {
     int i;
-    for(i = 0; i < ctx->mChunkSize; i++)
+    for(i = 0; i < ctx->mChunkSize; i += 2)
         printf("%d\n", ctx->mBuffer[i]);
 }
 
