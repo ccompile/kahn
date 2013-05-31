@@ -2,7 +2,7 @@ module E = Fft.Fft(Th)
 
 module P = Spectrogram.Printer(E.K)
 
-let n = 32
+let n = 64
 
 let rec create_n_channels = function
     | 0 -> ([],[])
@@ -28,7 +28,7 @@ let reading_thread () =
 
 let () =
     let _ = Thread.create reading_thread () in
-    E.K.run (E.K.doco [E.main ic n; P.printer id])
+    E.K.run (E.K.doco [E.main ic od n; P.printer id])
 (*	let lstener = Net.global_init
 		 (int_of_string (Sys.argv.(1))) in
 	if Sys.argv.(1) = "0" then

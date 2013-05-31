@@ -48,5 +48,7 @@ module Fft :
       val print_complex : Complex.t -> unit
       val output_module : Complex.t K.in_port list -> 'a K.process
       val butterfly : 'a list -> 'a list
-      val main : Complex.t K.in_port list -> int -> unit K.process
+      val main :
+        Complex.t K.in_port list ->
+        Complex.t K.out_port list -> int -> unit K.process
     end

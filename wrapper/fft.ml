@@ -157,13 +157,13 @@ module Fft (K : Interface.S) = struct
       to_list (n-1) []
 
 
-  let main ic size : unit K.process =
-        let d_in, d_out = create_n_channels size in
+  let main ic oc size : unit K.process =
+       (* let d_in, d_out = create_n_channels size in *)
         let k_in, k_out = K.new_channel () in
         K.doco ([
-             output_module d_in;
+           (*  output_module d_in; *)
              repeat (K.put (ei_k_n 1 size) k_out)] @
-             (create_fft size (butterfly ic) d_out k_in))
+             (create_fft size (butterfly ic) oc k_in))
 
 end
 
