@@ -35,7 +35,7 @@ module Printer(K: Interface.S)=struct
     let rec accumulate l lwork = match l with
       |t::q-> (K.get t) >>= ( fun v-> accumulate q (v::lwork))
       | [] -> let lfinal= List.map Complex.norm lwork in
-              let lfinal =List.map normalisation lfinal in 
+              let lfinal = normalisation lfinal in 
                swip_and_print (Array.of_list lfinal) 1 0 500 (List.length l_chan);
                accumulate l_chan []
     in
