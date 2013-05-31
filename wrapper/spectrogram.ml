@@ -40,8 +40,8 @@ module Printer(K: Interface.S)=struct
                accumulate l_chan []
     in
     open_graph " 800x600";
-    accumulate l_chan;
-    ()     
+    accumulate l_chan [];
+    (fun ()->())     
 end
 
 
