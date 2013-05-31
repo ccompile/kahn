@@ -1,5 +1,13 @@
 open Graphics;;
 
+(* Paramètres de normalisation*)
+module Printer(K: Interface.S)=struct
+  module K = K
+  module Lib = Kahn.Lib(K)
+  open Lib
+  let a = 1.
+  let b = 0.
+
 let print_spectr t spect=
   let spec= Array.make_matrix (Array.length spect) 1 (rgb 0 0 0) in  
   for i=0 to Array.length spect -1 do
@@ -18,13 +26,6 @@ let swip_and_print spect x1 y1 x2 y2 =
   defiler x1 y1 x2 y2;
   print_spectr (x2) spect
 
-(* Paramètres de normalisation*)
-module Printer(K: Interface.S)=struct
-  module K = K
-  module Lib = Kahn.Lib(K)
-  open Lib
-  let a = 1.
-  let b = 0.
 
 
   let rec normalisation =  function
